@@ -1,0 +1,109 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Personal website">
+    <meta name="author" content="Josh Brunton">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {% include 'features/bootstrap5.3.html' %}
+    {% include 'features/iconify.html' %}
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            color: #ffffff;
+        }
+
+        body {
+            background-image: url("{{ url_for('static', filename='img/background.webp') }}");
+            background-repeat: no-repeat;
+            background-size: cover;
+        }
+
+        main {
+            text-align: center;;
+        }
+
+        .content-area {
+            background-color: #3c3c3c;
+        }
+
+        #avatar-img {
+            border-radius: 50%;
+            border: 2px solid black;
+            height: 10rem;
+        }
+
+        .btn {
+            color: #ffffff;
+        }
+
+        .btn-bsky {
+            background-color: #4ca2fe;
+        }
+
+        .btn-gh {
+            background-color: #34bc54;
+        }
+
+        .btn-pm {
+            background-color: #7c5cff;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col"></div>
+            <div class="col-auto">
+                <main class="content-area mt-5 p-5">
+                    <img id="avatar-img" src="{{ url_for('static', filename='img/avatar.png') }}">
+                    <h1>Josh Brunton</h1>
+                    <hr />
+                    <p>
+                        Software Developer 
+                    </p>
+                    <div class="btn-group-vertical">
+                        <a role="btn" class="btn btn-lg btn-bsky" href="https://bsky.app/profile/joshbrunton.dev">
+                            <iconify-icon icon="ri:bluesky-fill"></iconify-icon>
+                            BlueSky
+                        </a>
+                        <a role="btn" class="btn btn-lg btn-gh" href="https://github.com/brunt-toast">
+                            <iconify-icon icon="mdi:github"></iconify-icon>
+                            GitHub
+                        </a>
+                        <a role="btn" class="btn btn-lg btn-pm" href="mailto:josh.brunton@proton.me">
+                            <iconify-icon icon="arcticons:proton-mail"></iconify-icon>
+                            E-mail
+                        </a>
+                    </div>
+                    <p class="mt-2">
+                        I'm not on Twitter or LinkedIn. 
+                    </p>
+                    <p>
+                        Built with: 
+
+                        <iconify-icon icon="skill-icons:html"></iconify-icon>
+                        <iconify-icon icon="skill-icons:css"></iconify-icon>
+                        <iconify-icon icon="skill-icons:bootstrap"></iconify-icon>
+                        <iconify-icon icon="skill-icons:python-dark"></iconify-icon>
+                        <iconify-icon icon="skill-icons:flask-light"></iconify-icon>
+
+                        <br />
+
+                        Hosten on: 
+
+                        <iconify-icon icon="skill-icons:github-dark"></iconify-icon>
+                        <iconify-icon icon="skill-icons:githubactions-dark"></iconify-icon>
+                    </p>
+                </main>
+            </div>
+            <div class="col"></div>
+        </div>
+    </div>
+</body>
+
+</html>
