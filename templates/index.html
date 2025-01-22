@@ -22,8 +22,14 @@
             background-size: cover;
         }
 
+        #main 
+        {
+            height: 100svh;
+            overflow-y: hidden;
+        }
+
         main {
-            text-align: center;;
+            text-align: center;
         }
 
         .content-area {
@@ -55,7 +61,7 @@
 </head>
 
 <body>
-    <div class="container">
+    <div class="container" id="main">
         <div class="row">
             <div class="col"></div>
             <div class="col-auto">
@@ -80,10 +86,7 @@
                             E-mail
                         </a>
                     </div>
-                    <p class="mt-2">
-                        I'm not on Twitter or LinkedIn. 
-                    </p>
-                    <p>
+                    <p class="mt-4">
                         Built with: 
 
                         <iconify-icon icon="skill-icons:html"></iconify-icon>
