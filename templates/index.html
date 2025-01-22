@@ -17,15 +17,26 @@
         }
 
         body {
-            background-image: url("{{ url_for('static', filename='img/background.webp') }}");
-            background-repeat: no-repeat;
-            background-size: cover;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            animation: animateBackground 6s infinite alternate;
+            background-size: 400% 400%;
         }
 
-        #main 
-        {
-            height: 100svh;
-            overflow-y: hidden;
+        @keyframes animateBackground {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 50% 100%;
+            }
+
+            100% {
+                background-position: 100% 50%;
+            }
         }
 
         main {
@@ -61,7 +72,7 @@
 </head>
 
 <body>
-    <div class="container" id="main">
+    <div class="container">
         <div class="row">
             <div class="col"></div>
             <div class="col-auto">
@@ -70,7 +81,7 @@
                     <h1>Josh Brunton</h1>
                     <hr />
                     <p>
-                        Software Developer 
+                        Software Developer
                     </p>
                     <div class="btn-group-vertical">
                         <a role="btn" class="btn btn-lg btn-bsky" href="https://bsky.app/profile/joshbrunton.dev">
@@ -87,7 +98,7 @@
                         </a>
                     </div>
                     <p class="mt-4">
-                        Built with: 
+                        Built with:
 
                         <iconify-icon icon="skill-icons:html"></iconify-icon>
                         <iconify-icon icon="skill-icons:css"></iconify-icon>
@@ -97,7 +108,7 @@
 
                         <br />
 
-                        Hosten on: 
+                        Hosten on:
 
                         <iconify-icon icon="skill-icons:github-dark"></iconify-icon>
                         <iconify-icon icon="skill-icons:githubactions-dark"></iconify-icon>
