@@ -1,0 +1,239 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="{{ post.title }}">
+    <meta name="author" content="Josh Brunton">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {% include 'features/bootstrap5.3.html' %}
+    {% include 'features/iconify.html' %}
+    {% include 'features/highlight.js.html' %}
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            color: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            animation: animateBackground 6s infinite alternate;
+            background-size: 400% 400%;
+            min-height: 100vh;
+        }
+
+        @keyframes animateBackground {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 50% 100%;
+            }
+
+            100% {
+                background-position: 100% 50%;
+            }
+        }
+
+        .content-area {
+            background-color: #3c3c3c;
+            border-radius: 8px;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            border-bottom: 2px solid #4ca2fe;
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        a {
+            color: #4ca2fe;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            background-color: #2a2a2a;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        pre {
+            background-color: #2a2a2a;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+            border-left: 4px solid #4ca2fe;
+            white-space: pre;
+            word-wrap: normal;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+            white-space: inherit;
+            word-break: normal;
+        }
+
+        blockquote {
+            border-left: 4px solid #4ca2fe;
+            padding-left: 1rem;
+            margin-left: 0;
+            margin-bottom: 1rem;
+            color: #b0b0b0;
+            font-style: italic;
+        }
+
+        ul, ol {
+            margin-bottom: 1rem;
+            margin-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #555555;
+            margin: 1.5rem 0;
+        }
+
+        .post-meta {
+            color: #b0b0b0;
+            margin-bottom: 2rem;
+        }
+
+        .post-date {
+            font-size: 0.95rem;
+        }
+
+        .post-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .post-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background-color: #555555;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            transition: background-color 0.3s;
+        }
+
+        .post-tag:hover {
+            background-color: #4ca2fe;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            color: #4ca2fe;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .back-link:hover {
+            color: #6fb3ff;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #555555;
+        }
+
+        th {
+            background-color: #2a2a2a;
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: #454545;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col"></div>
+            <div class="col-lg-8">
+                <div class="content-area mt-5 p-5">
+                    <a href="/blog.html" class="back-link">← Back to Blog</a>
+
+                    <h1>{{ post.title }}</h1>
+
+                    <div class="post-meta">
+                        <p class="post-date">{{ post.date_str }}</p>
+                        {% if post.tags %}
+                        <div class="post-tags">
+                            {% for tag in post.tags %}
+                            <a href="/blog.html?tag={{ tag }}" class="post-tag">{{ tag }}</a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="post-content">
+                        {{ post.html_content | safe }}
+                    </div>
+
+                    <hr />
+                    <a href="/blog.html" class="back-link">← Back to Blog</a>
+                </div>
+            </div>
+            <div class="col"></div>
+        </div>
+    </div>
+</body>
+
+</html>
