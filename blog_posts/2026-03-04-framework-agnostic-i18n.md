@@ -4,7 +4,9 @@ date: 2026-03-04
 tags: [.NET]
 ---
 
-If your app is marketed towards users in multiple countries, you might want to add translations for user-facing content in your app. Microsoft.Extensions.Localization makes this easy. 
+If your app is marketed towards users in multiple countries, you might want to add translations to make it more accessible and appealing to users who perfer other languages. 
+
+This post details how to easily set up translations for any .NET app, with the added benefit of every resource being strongly typed for an additional layer of protection against accidental breaking changes. 
 
 ## Package Reference
 
@@ -18,40 +20,7 @@ You'll need to reference the Microsoft.Extensions.Localization nuget package.
 
 First, define your default culture's resources. Under the folder `/Resource/Languages`, create a file with the `.resx` extensions. 
 
-Set its build action to "Embedded Resource" and set the custom tool to ResX file code generator. If you're not using Visual Studio, you can do this manually in your project file like so: 
-
-```xml
-  <ItemGroup>
-    <EmbeddedResource Update="Resources\Languages\MyComponentResources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>MyComponentResources.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="Resources\Languages\MyComponentResources.Designer.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>MyComponentResources.resx</DependentUpon>
-    </Compile>
-  </ItemGroup>
-```
-
-Note that a class will be generated from every .resx file at design time. For this reason, it's common to name them `*Resources.resx` (e.g. `MyComponentResources.resx`), so as not to confuse them with the existing classes. 
-
-Alternatively, you can use this snippet, which will apply to all files in /Resources/Languages, but doesn't generate the Designer.cs files at design time, breaking IDE support. 
-
-```xml
-  <ItemGroup>
-    <EmbeddedResource Update="Resources\Languages\*.resx">
-      <Generator>MSBuild:Compile</Generator>
-      <StronglyTypedFileName>$(IntermediateOutputPath)%(Filename).Designer.cs</StronglyTypedFileName>
-      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
-      <StronglyTypedNamespace>$(RootNamespace).Resources.Languages</StronglyTypedNamespace>
-      <StronglyTypedClassName>%(Filename)</StronglyTypedClassName>
-    </EmbeddedResource>
-  </ItemGroup>
-```
+Note that a class will be generated from every .resx file at design time. For this reason, it's recommended to name them `*Resources.resx` (e.g. `MyComponentResources.resx`), so as not to confuse them with the existing classes. 
 
 The initial content of the file is a lot, but don't worry, you don't have to read or modify any of it. 
 
@@ -119,7 +88,7 @@ The initial content of the file is a lot, but don't worry, you don't have to rea
 </root>
 ```
 
-To add resources, add the following. 
+To add a new resource, add the following. 
 
 ```diff
   </resheader>
@@ -129,7 +98,7 @@ To add resources, add the following.
 </root>
 ```
 
-To add an alternative culture, create another file with the same name, but with its ISO 639 Alpha 2 language code between the name and the extension. For example, `MyComponentResources.resx` adapted for metropolitan French (`fr`) would become `MyComponentResources.fr.resx`. The file is structured exactly the same - the only thing that should differ is the values. 
+To add an alternative culture, create another file with the same name, but with its ISO 639 Alpha 2 language code between the name and the extension. For example, `MyComponentResources.resx` adapted for French (`fr`) would become `MyComponentResources.fr.resx`. The file is structured exactly the same - the only thing that should differ is the values. 
 
 ```diff
   </resheader>
@@ -139,7 +108,24 @@ To add an alternative culture, create another file with the same name, but with 
 </root>
 ```
 
-## Tip: File Nesting 
+After you've defined your resources, you'll need to make them eligible for compilation. Visual Studio updates them automatically on save, but you can overwrite this behaviour and generate files manually for both a smaller csproj file and a better cross-IDE experience. 
+
+```xml
+  <ItemGroup>
+    <EmbeddedResource Update="Resources/Languages/*.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <LastGenOutput>%(Filename).Designer.cs</LastGenOutput>
+      <StronglyTypedFileName>$(MSBuildProjectDirectory)\Resources\Languages\%(Filename).Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>$(RootNamespace).Resources.Languages</StronglyTypedNamespace>
+      <StronglyTypedClassName>%(Filename)</StronglyTypedClassName>
+    </EmbeddedResource>
+  </ItemGroup>
+```
+
+Since the Designer.cs files are generated (i.e., not source), you may want to exclude them from version control. Be wary that existing projects may have other Designer.cs files which should *not* be ignored. 
+
+## Quick Aside: File Nesting 
 
 The number of resx files in your project should be equal to the number of supported cultures multiplied by the number of resource classes. This number can grow quickly. To make it more manageable, you can configure file nesting in your editor to group by the resource class. 
 
@@ -173,7 +159,9 @@ For Visual Studio, it's a little more verbose, as there are no patterns or captu
 
 ## Using translations 
 
-Using a simple translation is as simple as referencing the static string property on your resource class, e.g. `MyComponentResources.KeyToReference`. The getter will automatically resolve which culture to use. 
+Using a simple translation is as simple as referencing the static string property on your resource class, e.g. `MyComponentResources.KeyToReference`. 
+
+The getter will automatically resolve which culture to use based on `CultureInfo.DefaultThreadCurrentCulture` or `CultureInfo.DefaultThreadCurrentUICulture`
 
 Note that if the value is empty or undefined, the resolver will fall back to the default culture. 
 
@@ -195,7 +183,7 @@ For example, in our resource definitions:
 * `en`: FileLocation = "You can find the file at {0}.";
 * `ja`: FileLocation = "ファイルは{0}で見つかります。";
 
-Finally, use an indexer on the IStringLocalizer, with the resource key and any parameters. `_l10nService[MyComponentResources.FileLocation, fileLocation]` will become: 
+Finally, use an indexer on the IStringLocalizer, with the resource key and any parameters. `_myStringLocalizer[MyComponentResources.FileLocation, fileLocation]` will become: 
 
 * `en`: "You can find the file at C:\Users\User\Documents."
 * `ja`: ファイルはC:\Users\User\Documentsで見つかります。
