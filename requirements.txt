@@ -3,3 +3,4 @@ Frozen-Flask
 gunicorn
 markdown
 PyYAML
+markdown-gfm-admonition

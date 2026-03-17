@@ -46,7 +46,7 @@ def parse_blog_post(file_path):
         post_date = datetime.now()
     
     # Convert markdown to HTML
-    html_content = markdown.markdown(markdown_content, extensions=['fenced_code'])
+    html_content = markdown.markdown(markdown_content, extensions=['fenced_code', "gfm_admonition"])
     
     return {
         'filename': file_path.name,
