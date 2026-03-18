@@ -8,13 +8,13 @@ tags: [GitHub]
 > This is a note.
 
 > [!TIP]
-> This is a note.
+> This is a tip.
 
 > [!IMPORTANT]
-> This is a note.
+> This is important.
 
 > [!WARNING]
-> This is a note.
+> This is a warning.
 
 > [!CAUTION]
-> This is a note.
+> This is a caution.

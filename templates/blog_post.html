@@ -10,6 +10,67 @@
     {% include 'features/iconify.html' %}
     {% include 'features/highlight.js.html' %}
 
+    <script>
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement(
+                {
+                    pageLanguage: 'en', // your site's default language
+                    layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+                },
+                'google_translate_element'
+            );
+        }
+
+
+    </script>
+
+    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+    <style>
+        #google_translate_element {
+            position: absolute;
+            right: 0;
+        }
+
+        #google_translate_element * {
+            color: lightblue;
+            text-decoration: underline;
+        }
+
+        .goog-te-gadget-simple {
+            background: transparent;
+            border: none;
+        }
+
+        .goog-te-gadget-simple * {
+            font-family: inherit;
+            font-size: inherit;
+            margin: 0;
+            padding: 0;
+        }
+
+        .goog-te-gadget-simple>img {
+            display: none !important;
+        }
+
+        .goog-te-gadget-simple>span>a * {
+            color: inherit;
+        }
+
+        .goog-te-gadget-simple>span>a>span:first-of-type {
+            display: none;
+        }
+
+        .goog-te-gadget-simple>span>a::before {
+            content: "A文";
+        }
+
+        .goog-te-gadget-simple>span>a>span:nth-last-of-type(1),
+        .goog-te-gadget-simple>span>a>span:nth-last-of-type(2) {
+            display: none;
+        }
+    </style>
+
     <style>
         * {
             margin: 0;
@@ -44,7 +105,12 @@
             border-radius: 8px;
         }
 
-        h1, h2, h3, h4, h5, h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             margin-top: 1.5rem;
             margin-bottom: 0.75rem;
         }
@@ -115,7 +181,8 @@
             font-style: italic;
         }
 
-        ul, ol {
+        ul,
+        ol {
             margin-bottom: 1rem;
             margin-left: 1.5rem;
         }
@@ -185,7 +252,8 @@
             margin-bottom: 1rem;
         }
 
-        th, td {
+        th,
+        td {
             padding: 0.75rem;
             text-align: left;
             border-bottom: 1px solid #555555;
@@ -200,106 +268,118 @@
             background-color: #454545;
         }
 
-    /*ADMONITIONS*/
-    @font-face {
-        font-family: "Octicons";
-        src: url("https://raw.githubusercontent.com/gabrielelana/awesome-terminal-fonts/master/fonts/octicons-regular.ttf") format("truetype");
-    }
+        /*ADMONITIONS*/
+        @font-face {
+            font-family: "Octicons";
+            src: url("https://raw.githubusercontent.com/gabrielelana/awesome-terminal-fonts/master/fonts/octicons-regular.ttf") format("truetype");
+        }
 
-    .admonition {
-        margin: 1rem 0;
-        padding: 0.6rem 0 0.6rem 1rem;
-        border-left: 0.25rem solid;
-    }
+        .admonition {
+            margin: 1rem 0;
+            padding: 0.6rem 0 0.6rem 1rem;
+            border-left: 0.25rem solid;
+        }
 
-    .admonition-title {
-        margin: 0 0 0.25rem 0;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-    }
+        .admonition-title {
+            margin: 0 0 0.25rem 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
 
-    .admonition > :first-child { margin-top: 0; }
-    .admonition > :last-child { margin-bottom: 0; }
+        .admonition> :first-child {
+            margin-top: 0;
+        }
 
-    .admonition.note {
-        border-color: #0969da;
-    }
-    .admonition.note,
-    .admonition.note * {
-        color: #0969da;
-    }
+        .admonition> :last-child {
+            margin-bottom: 0;
+        }
 
-    .admonition.tip {
-        border-color: #1a7f37;
-    }
-    .admonition.tip,
-    .admonition.tip * {
-        color: #1a7f37;
-    }
+        .admonition.note {
+            border-color: #0969da;
+        }
 
-    .admonition.important {
-        border-color: #8250df;
-    }
-    .admonition.important,
-    .admonition.important * {
-        color: #8250df;
-    }
+        .admonition.note,
+        .admonition.note * {
+            color: #0969da;
+        }
 
-    .admonition.warning {
-        border-color: #9a6700;
-    }
-    .admonition.warning,
-    .admonition.warning * {
-        color: #9a6700;
-    }
+        .admonition.tip {
+            border-color: #1a7f37;
+        }
 
-    .admonition.caution {
-        border-color: #cf222e;
-    }
-    .admonition.caution,
-    .admonition.caution * {
-        color: #cf222e;
-    }
+        .admonition.tip,
+        .admonition.tip * {
+            color: #1a7f37;
+        }
 
-    .admonition-title::before {
-        font-family: "Octicons";
-        font-style: normal;
-        font-weight: normal;
-        font-variant: normal;
-        text-transform: none;
-        display: inline-block;
+        .admonition.important {
+            border-color: #8250df;
+        }
 
-        margin-right: 0.5rem;
-        font-size: 1.1em;
-        line-height: 1;
-        transform: translateY(10%);
-    }
+        .admonition.important,
+        .admonition.important * {
+            color: #8250df;
+        }
 
-    .admonition.note > .admonition-title::before {
-        content: "\f059";
-    }
+        .admonition.warning {
+            border-color: #9a6700;
+        }
 
-    .admonition.tip > .admonition-title::before {
-        content: "\f0d2";
-    }
+        .admonition.warning,
+        .admonition.warning * {
+            color: #9a6700;
+        }
 
-    .admonition.important > .admonition-title::before {
-        content: "\f02b";
-    }
+        .admonition.caution {
+            border-color: #cf222e;
+        }
 
-    .admonition.warning > .admonition-title::before {
-        content: "\f02d";
-    }
+        .admonition.caution,
+        .admonition.caution * {
+            color: #cf222e;
+        }
 
-    .admonition.caution > .admonition-title::before {
-        content: "\f08f";
-    }
+        .admonition-title::before {
+            font-family: "Octicons";
+            font-style: normal;
+            font-weight: normal;
+            font-variant: normal;
+            text-transform: none;
+            display: inline-block;
 
+            margin-right: 0.5rem;
+            font-size: 1.1em;
+            line-height: 1;
+            transform: translateY(10%);
+        }
+
+        .admonition.note>.admonition-title::before {
+            content: "\f059";
+        }
+
+        .admonition.tip>.admonition-title::before {
+            content: "\f0d2";
+        }
+
+        .admonition.important>.admonition-title::before {
+            content: "\f02b";
+        }
+
+        .admonition.warning>.admonition-title::before {
+            content: "\f02d";
+        }
+
+        .admonition.caution>.admonition-title::before {
+            content: "\f08f";
+        }
     </style>
 </head>
 
 <body>
+
+    <div id="google_translate_element"></div>
+
     <div class="container">
         <div class="row">
             <div class="col"></div>
