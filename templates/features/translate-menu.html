@@ -1,0 +1,48 @@
+<style>
+    .menu,
+    .menu ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+
+    .menu li {
+        margin: 4px 0;
+    }
+
+    .menu input+label+ul {
+        display: none;
+    }
+
+    .menu input:checked+label+ul {
+        display: block;
+    }
+
+    .menu label,
+    .menu li {
+        color: lightblue;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    .menu>li>ul {
+        padding-left: 2ch;
+    }
+
+    .menu input {
+        display: none;
+    }
+</style>
+<ul class="menu">
+    <li>
+        <input type="checkbox" id="menu-1">
+        <label for="menu-1">A文</label>
+
+        <ul>
+            <li>
+                <div id="google_translate_element"></div>
+            </li>
+            <li onclick="translateNav()">Use Navigation</li>
+        </ul>
+    </li>
+</ul>
