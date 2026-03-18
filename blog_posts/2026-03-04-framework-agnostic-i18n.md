@@ -4,13 +4,13 @@ date: 2026-03-04
 tags: [.NET]
 ---
 
-If your app is marketed towards users in multiple countries, you might want to add translations to make it more accessible and appealing to users who perfer other languages. 
+If your app is marketed towards users in multiple countries, you might want to add translations to make it more accessible and appealing to users who prefer other languages. 
 
 This post details how to easily set up translations for any .NET app, with the added benefit of every resource being strongly typed for an additional layer of protection against accidental breaking changes. 
 
 ## Package Reference
 
-You'll need to reference the Microsoft.Extensions.Localization nuget package. 
+You'll need to reference the Microsoft.Extensions.Localization NuGet package. 
 
 ```xml
 <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.3" />
@@ -18,7 +18,7 @@ You'll need to reference the Microsoft.Extensions.Localization nuget package.
 
 ## Defining translations
 
-First, define your default culture's resources. Under the folder `/Resource/Languages`, create a file with the `.resx` extensions. 
+First, define your default culture's resources. Under the folder `/Resource/Languages`, create a file with the `.resx` extension. 
 
 Note that a class will be generated from every .resx file at design time. For this reason, it's recommended to name them `*Resources.resx` (e.g. `MyComponentResources.resx`), so as not to confuse them with the existing classes. 
 
@@ -167,26 +167,25 @@ Note that if the value is empty or undefined, the resolver will fall back to the
 
 ## Parameterised translations 
 
-Not all languages put the same words in the same position. Sometimes, you need to interpolate a value into an indeterminate position in a localised resource. 
+Not all cultures put the same words in the same position, or even in the same order. Sometimes, you need to interpolate a value into an indeterminate position in a localised resource. 
 
-To use parameterised translation, you'll need to add localisation services to your dependency injection container. Thanks to the NuGet package we installed earlier, it's as simple as: 
+In your resource declaration, you use `{0}`, `{1}`, etc. in the declaration to add parameters. For example: 
+
+* `en`: ConfirmationMessage = "Sent {0} to {1}.";
+* `ja`: ConfirmationMessage = "{1}に{0}を送りました。";
+
+To use them, you'll first need to add localisation services to your dependency injection container. Thanks to the NuGet package we installed earlier, it's as simple as: 
 
 ```csharp
 builder.Services.AddLocalization();
 ```
 
-Then, wherever you want to use it, inject a `Microsoft.Extensions.Localization.IStringLocalizer<out T>`, where `T` is the name of your resx file with a namespace generated from the path, e.g. `Resources.Languages.MyComponentResources`.
+In the class where you want to render the parameterised resource, you'll need to inject a `Microsoft.Extensions.Localization.IStringLocalizer<T>`, where `T` is the name of your resx file with a namespace generated from the path, e.g. `Resources.Languages.MyComponentResources`. 
 
-In your resource declaration, use `{0}` (with incrementing numbers) in the declaration, then add additional parameters to the indexer used to access the resource. 
+Then, to render, use an indexer on the `IStringLocalizer`, with the resource key and any parameters. The first additional parameter will be placed at `{0}`, the second at `{1}`, etc. In our earlier example, `_myStringLocalizer[MyComponentResources.ConfirmationMessage, fileName, emailAddress]` will become: 
 
-For example, in our resource definitions: 
-* `en`: FileLocation = "You can find the file at {0}.";
-* `ja`: FileLocation = "ファイルは{0}で見つかります。";
-
-Finally, use an indexer on the IStringLocalizer, with the resource key and any parameters. `_myStringLocalizer[MyComponentResources.FileLocation, fileLocation]` will become: 
-
-* `en`: "You can find the file at C:\Users\User\Documents."
-* `ja`: ファイルはC:\Users\User\Documentsで見つかります。
+* `en`: "Sent invoice.pdf to someone@example.com."
+* `ja`: someone@example.comにinvoice.pdfを送りました。
 
 ## Changing cultures at runtime 
 

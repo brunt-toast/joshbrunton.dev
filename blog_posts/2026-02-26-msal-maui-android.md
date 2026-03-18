@@ -80,12 +80,21 @@ var pcab = PublicClientApplicationBuilder.Create(clientId)
         .WithParentActivityOrWindow(() => Platform.CurrentActivity);
 ```
 
-This builder is then used to build a IPublicClientApplication, which is what's ultimately used to retrieve a bearer token. 
+## Acquiring and using a token 
+
+Once the `PublicClientApplicationBuilder` is ready, is then used to build an `IPublicClientApplication`. This instance is what's ultimately used to retrieve a bearer token. 
 
 ```csharp
 IPublicClientApplication pca = pcab.Build();
 AuthenticationResult? authResult = await pca.AcquireTokenInteractive([ /* scopes */ ]); 
 string? token = authResult?.AccessToken;
+```
+
+You can then add this token to requests to relevant resources. 
+
+```csharp
+HttpRequestMessage request = new(/* ... */);
+request.Headers.Add("Authorization", $"Bearer {token}");
 ```
 
 ## Further Reading 
