@@ -93,8 +93,7 @@ string? token = authResult?.AccessToken;
 You can then add this token to requests to relevant resources. 
 
 ```csharp
-HttpRequestMessage request = new(/* ... */);
-request.Headers.Add("Authorization", $"Bearer {token}");
+httpRequestMessage.Headers.Add("Authorization", $"Bearer {token}");
 ```
 
 ## Further Reading 
