@@ -7,11 +7,18 @@
     }
 
     .menu li {
-        margin: 4px 0;
+        position: relative;
     }
 
     .menu input+label+ul {
         display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #3c3c3c;
+        border: 1px solid #2b2b2b;
+        padding: 1ch;
+        z-index: 1000;
     }
 
     .menu input:checked+label+ul {
@@ -25,8 +32,9 @@
         cursor: pointer;
     }
 
-    .menu>li>ul {
-        padding-left: 2ch;
+    .menu ul ul {
+        left: 100%;
+        top: 0;
     }
 
     .menu input {
@@ -36,7 +44,7 @@
 <ul class="menu">
     <li>
         <input type="checkbox" id="menu-1">
-        <label for="menu-1">A文</label>
+        <label for="menu-1" class="skiptranslate">A文</label>
 
         <ul>
             <li>
