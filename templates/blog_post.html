@@ -27,10 +27,10 @@
     <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
     <style>
-        #google_translate_element {
+        /*#google_translate_element {
             position: absolute;
             right: 0;
-        }
+        }*/
 
         #google_translate_element * {
             color: lightblue;
@@ -62,7 +62,7 @@
         }
 
         .goog-te-gadget-simple>span>a::before {
-            content: "A文";
+            content: "Use gadget";
         }
 
         .goog-te-gadget-simple>span>a>span:nth-last-of-type(1),
@@ -374,11 +374,64 @@
             content: "\f08f";
         }
     </style>
+
+    <style>
+        .menu,
+        .menu ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .menu li {
+            margin: 4px 0;
+        }
+
+        .menu input+label+ul {
+            display: none;
+        }
+
+        .menu input:checked+label+ul {
+            display: block;
+        }
+
+        .menu label,
+        .menu li {
+            color: lightblue;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .menu>li>ul {
+            padding-left: 2ch;
+        }
+
+        .menu input {
+            display: none;
+        }
+    </style>
+
+    <script>
+        function translateNav() {
+            window.location.href = "https://translate.google.com/translate?sl=auto&u=" + window.location.href;
+        }
+    </script>
 </head>
 
 <body>
+    <ul class="menu">
+        <li>
+            <input type="checkbox" id="menu-1">
+            <label for="menu-1">A文</label>
 
-    <div id="google_translate_element"></div>
+            <ul>
+                <li>
+                    <div id="google_translate_element"></div>
+                </li>
+                <li onclick="translateNav()">Use Navigation</li>
+            </ul>
+        </li>
+    </ul>
 
     <div class="container">
         <div class="row">
