@@ -4,10 +4,6 @@ date: 2026-01-28
 tags: [.NET, MAUI, tutorial]
 ---
 
-## Disclaimer 
-
-This article was proofread by GPT 5o, and some spelling corrections were made as a result. The writing and technical information were not generated or influenced by any LLM. 
-
 ## Preamble
 
 The process for publishing a .NET MAUI app for Windows is arcane and convoluted. Visual Studio's publishing wizard, which used to simplify it into a few easy steps, has become fragile and outdated, and the documentation on how to do it by hand is fragmented and conflicting. 
