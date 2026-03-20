@@ -53,7 +53,7 @@ extension(DateTimeOffset)
   public static bool TryParseGuidV7(Guid id, out DateTimeOffset ret)
   {
       const long dateTimeOffsetMinValue = -62135596800000;
-      const long dateTimeOffsetMaxValue = 253402300799999;
+      const long dateTimeOffsetMaxValue s= 253402300799999;
 
       Span<byte> b = stackalloc byte[16];
       long timestamp;
