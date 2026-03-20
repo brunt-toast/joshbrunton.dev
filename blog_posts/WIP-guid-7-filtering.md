@@ -1,6 +1,6 @@
 GUID v7 is an implementation of GUID which encodes a timestamp, making numeric order synonymous with time order while still making collisions incredibly unlikely and remaining fully backwards-compatible with existing APIs accepting GUIDs. 
 
-The method `Guid.CreateVerion7()` (and overloads) was added to the .NET standard library in version 9, but to this day with .NET 10 in LTS and .NET 11 in preview, there are no methods to read the timestamp component of a GUID v7. 
+The method `Guid.CreateVerion7()` (and overloads) was added to the .NET standard library in version 9, but to this day with .NET 10 in LTS and .NET 11 in preview, there are no methods to read the timestamp component of a GUID v7.
 
 This article details how to identify a GUID v7 and parse out its timestamp, using some monstrous C-like C# code. 
 
@@ -18,7 +18,7 @@ $$
 b_8 \land 11000000 = 10000000
 $$
 
-We can use these rules to create a very efficient C# method to check if a GUID is v7 or not. This method runs in O(n) time with zero heap allocations, taking an average of $216.0ns\pm 6.77ns$ on a 3.7GHz processor. 
+We can use these rules to create a very efficient C# method to check if a GUID is v7 or not. This method runs in $O(n)$ time with zero heap allocations, taking an average of $216.0ns\pm 6.77ns$ on a 3.7GHz processor. 
 
 ```csharp
 static bool IsVersion7(Guid id)
@@ -37,15 +37,16 @@ We'll re-use this logic later when sanity checking our inputs.
 
 If we copy the first 48 bits of a GUID v7 into a `long`, we can then use that long to generate a `DateTimeOffset`. 
 
-In the below implementation, we use the `TryParse` pattern as an extension of return type `DateTimeOffset`. We do this instead of making an extension `Guid.ToDateTimeOffset()` because for robustness, we must assume that:
+In the below implementation, we use the `TryParse` pattern as an extension of return type `DateTimeOffset`. We do this instead of making an extension `Guid.ToDateTimeOffset()` because for robustness, we must assume that the following failure conditions are possible:
 
-* `id.TryWriteBytes` might fail (we know we have enough memory, but it's good to treat it as the API contract intends)
-* The GUID might not be v7
-* The timestamp component might fall outside the bounds of an acceptable value for `DateTimeOffset.FromUnixTimeMilliseconds`
+* `id.TryWriteBytes` might fail (in practice, it won't, because we know for a fact that 16 bytes of memory is exactly right, but the API suggests it might) 
+* The GUID might not be v7 
+* The timestamp component might fall outside the bounds of an acceptable value for `DateTimeOffset.FromUnixTimeMilliseconds` 
 
-Note that the assignment of the variable `timestamp` looks odd here because the byte order for `Guid` and `long` in .NET are different. 
+This method runs in $O(n)$, should never throw an exception, and will make no allocations to the heap. On a 3.7GHz processor, it takes an average of $1.118\mu s\pm0.283\mu s$.
 
-This method runs in O(n), should never throw an exception, and will make no allocations to the heap. On a 3.7GHz processor, it takes an average of $1.314\mu s\pm0.0298\mu s$. 
+>[!NOTE]
+> The assignment of the variable `timestamp` looks odd here because the byte order for `Guid` and `long` in .NET are different. This mapping introduces a small but neccesary performance overhead.
 
 ```csharp
 extension(DateTimeOffset)
@@ -53,7 +54,7 @@ extension(DateTimeOffset)
   public static bool TryParseGuidV7(Guid id, out DateTimeOffset ret)
   {
       const long dateTimeOffsetMinValue = -62135596800000;
-      const long dateTimeOffsetMaxValue s= 253402300799999;
+      const long dateTimeOffsetMaxValue = 253402300799999;
 
       Span<byte> b = stackalloc byte[16];
       long timestamp;
@@ -85,3 +86,9 @@ extension(DateTimeOffset)
   }
 }
 ```
+
+## Closing Thoughts 
+
+With these methods, it should be easy and reliable to extract timestamp info from GUIDs for presentation and manipulation. 
+
+Now, we won't be tempted to keep our `CreatedAt datetime` database columns for the convenience of not having to extract the timestamp (at the cost of query and write speed). 
