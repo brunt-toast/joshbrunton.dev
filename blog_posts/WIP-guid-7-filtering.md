@@ -2,7 +2,7 @@ GUID v7 is an implementation of GUID which encodes a timestamp, making numeric o
 
 The method `Guid.CreateVerion7()` (and overloads) was added to the .NET standard library in version 9, but to this day with .NET 10 in LTS and .NET 11 in preview, there are no methods to read the timestamp component of a GUID v7.
 
-This article details how to identify a GUID v7 and parse out its timestamp, using some monstrous C-like C# code. 
+This article details how to identify a GUID v7 and parse out its timestamp, using some monstrous C-like (but safe!) code that directly addresses bits in memory. 
 
 ## Identifying a GUID v7
 
@@ -37,53 +37,51 @@ We'll re-use this logic later when sanity checking our inputs.
 
 If we copy the first 48 bits of a GUID v7 into a `long`, we can then use that long to generate a `DateTimeOffset`. 
 
+The GUID v7 specification indicates that the first 48 bits are the number of milliseconds elapsed since the UNIX epoch. It also defines an optional extra 12 bits to indicate sub-millisecond accuracy. Since `DateTimeOffset`'s maximum granularity is $100ns$ (a "tick"), and GUID v7's is $244.140625ns$, we can use `DateTimeOffset` it to full range of timestamps available to GUID v7. 
+
+>[!NOTE]
+> `Guid.CreateV7(DateTimeOffset timestamp)` doesn't use the optional sub-millisecond accuracy. If you need to test for this level of granularity, you'll need to hand-craft your input data. 
+
 In the below implementation, we use the `TryParse` pattern as an extension of return type `DateTimeOffset`. We do this instead of making an extension `Guid.ToDateTimeOffset()` because for robustness, we must assume that the following failure conditions are possible:
 
 * `id.TryWriteBytes` might fail (in practice, it won't, because we know for a fact that 16 bytes of memory is exactly right, but the API suggests it might) 
 * The GUID might not be v7 
 * The timestamp component might fall outside the bounds of an acceptable value for `DateTimeOffset.FromUnixTimeMilliseconds` 
 
-This method runs in $O(n)$, should never throw an exception, and will make no allocations to the heap. On a 3.7GHz processor, it takes an average of $1.118\mu s\pm0.283\mu s$.
+This method runs in $O(n)$, should never throw an exception, and will make no allocations to the heap. On a 3.7GHz processor, it takes an average of $134.4ns\pm19.29ns$. 
 
 >[!NOTE]
-> The assignment of the variable `timestamp` looks odd here because the byte order for `Guid` and `long` in .NET are different. This mapping introduces a small but neccesary performance overhead.
+> Because of compiler optimisations, this method runs faster than our earlier `Guid.IsVersion7()`, despite wrapping its logic.
 
 ```csharp
 extension(DateTimeOffset)
 {
-  public static bool TryParseGuidV7(Guid id, out DateTimeOffset ret)
-  {
-      const long dateTimeOffsetMinValue = -62135596800000;
-      const long dateTimeOffsetMaxValue = 253402300799999;
+    public static bool TryParseGuidV7(Guid id, out DateTimeOffset ret)
+    {
+        Span<byte> b = stackalloc byte[16];
 
-      Span<byte> b = stackalloc byte[16];
-      long timestamp;
+        if (!id.TryWriteBytes(b, true, out _)
+            || (b[6] & 0b11110000) != 0b01110000
+            || (b[8] & 0b11000000) != 0b10000000)
+        {
+            ret = default;
+            return false;
+        }
 
-      if (!id.TryWriteBytes(b)
-          || (b[7] & 0b11110000) != 0b01110000
-          || (b[8] & 0b11000000) != 0b10000000)
-      {
-          ret = default;
-          return false;
-      }
+        long raw = BinaryPrimitives.ReadInt64BigEndian(b);
+        long ticks = 621355968000000000
+                        + (raw >> 16) * 10_000
+                        + (((raw & 0x0FFF) * 10_000) >> 12);
 
-      timestamp =
-          ((long)b[3] << 0x28) |
-          ((long)b[2] << 0x20) |
-          ((long)b[1] << 0x18) |
-          ((long)b[0] << 0x10) |
-          ((long)b[5] << 0x8) |
-          b[4];
+        if (ticks is < 0 or > 3155378975999999999)
+        {
+            ret = default;
+            return false;
+        }
 
-      if (timestamp is < dateTimeOffsetMinValue or > dateTimeOffsetMaxValue)
-      {
-          ret = default;
-          return false;
-      }
-
-      ret = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime;
-      return true;
-  }
+        ret = new DateTimeOffset(ticks, TimeSpan.Zero);
+        return true;
+    }
 }
 ```
 
@@ -92,3 +90,7 @@ extension(DateTimeOffset)
 With these methods, it should be easy and reliable to extract timestamp info from GUIDs for presentation and manipulation. 
 
 Now, we won't be tempted to keep our `CreatedAt datetime` database columns for the convenience of not having to extract the timestamp (at the cost of query and write speed). 
+
+## References 
+
+https://datatracker.ietf.org/doc/rfc9562/
