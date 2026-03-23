@@ -54,7 +54,7 @@ $$
 In code, we can express that like so:
 
 ```csharp
-int fracNumerator = (int)Math.Min(((d - DateTimeOffset.FromUnixTimeMilliseconds(d.ToUnixTimeMilliseconds())).Ticks * 4096 + 5000) / 10_000, 4095);
+int fracNumerator = (int)Math.Min((((d.Ticks % 10000) << 12) + 5000) / 10_000, 4095);
 ```
 
 Then, we can update our Guid like so: 
@@ -82,7 +82,7 @@ static Guid CreateVersion7Precise(DateTimeOffset d)
     Span<byte> bytes = stackalloc byte[16];
     Guid.CreateVersion7(d).TryWriteBytes(bytes);
 
-    int fracNumerator = (int)Math.Min(((d - DateTimeOffset.FromUnixTimeMilliseconds(d.ToUnixTimeMilliseconds())).Ticks * 4096 + 5000) / 10_000, 4095);
+    int fracNumerator = (int)Math.Min((((d.Ticks % 10000) << 12) + 5000) / 10_000, 4095);
     bytes[6] = (byte)(fracNumerator & 0xFF);
     bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
 
