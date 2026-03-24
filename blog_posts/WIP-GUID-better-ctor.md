@@ -25,7 +25,14 @@ static Guid CreateVersion7Precise(DateTimeOffset d)
 
 Our next point of business is encoding the timestamp with millisecond-level precision. 
 
-If using .NET 8 or lower, we'd have to do this manually. The below example demonstrates the appropriate mapping in case you're subject to this limitation.  
+With .NET 9.0 and greater, we can farm this out to the existing `CreateVersion7()`.
+
+```csharp
+Span<byte> bytes = stackalloc byte[16];
+_ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
+```
+
+If using between .NET Core 2.1 and .NET 8.x, or .NET Standard 2.1, this has to be done manually. The below example demonstrates the appropriate mapping in case you're subject to this limitation.  
 
 ```csharp
 long totalMilliseconds = d.ToUnixTimeMilliseconds();
@@ -37,14 +44,7 @@ bytes[5] = (byte)(totalMilliseconds >> 0x08);
 bytes[4] = (byte)(totalMilliseconds);
 ```
 
-But with .NET 9.0 and greater, we can farm this out to the existing `CreateVersion7()` method instead.
-
-```csharp
-Span<byte> bytes = stackalloc byte[16];
-_ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
-```
-
-.NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation of 2352 bytes. 
+All other versions (.NET Core &le; 2.0, .NET Standard &le; 2.0, .NET Framework) also don't support `Guid.TryWriteBytes()`. Instead, use `.ToByteArray()` instead, which will cause a heap allocation of 2352 bytes. 
 
 ## Setting the fractional component 
 
@@ -79,29 +79,15 @@ bytes[7] = (byte)((bytes[7] & 0x0F) | 0x70);
 
 ## Complete method 
 
-Putting all this together, our complete method for enhanced precision GUID v7 generation in .NET 9.0 and greater is:
+Putting all this together, we can create a method for creating a GUID v7 that's about 500x more precise than the standard implementation in .NET 9: 
 
 ```csharp
 static Guid CreateVersion7Precise(DateTimeOffset d)
 {
+#if NET9_0_OR_GREATER
     Span<byte> bytes = stackalloc byte[16];
-    _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
-
-    int fracNumerator = (int) Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
-    bytes[6] = (byte)(fracNumerator & 0xFF);
-    bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
-
-    bytes[7] = (byte)((bytes[7] & 0x0F) | 0x70);
-
-    return new Guid(bytes);
-}
-```
-
-For .NET Core 8 and lower: 
-
-```csharp
-public static Guid CreateVersion7Precise(DateTimeOffset d)
-{
+    Guid.CreateVersion7(d).TryWriteBytes(bytes);
+#elif NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1
     Span<byte> bytes = stackalloc byte[16];
     Guid.NewGuid().TryWriteBytes(bytes);
 
@@ -112,22 +98,7 @@ public static Guid CreateVersion7Precise(DateTimeOffset d)
     bytes[0] = (byte)(totalMilliseconds >> 0x10);
     bytes[5] = (byte)(totalMilliseconds >> 0x08);
     bytes[4] = (byte)(totalMilliseconds);
-
-    int fracNumerator = (int)Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
-    bytes[6] = (byte)(fracNumerator & 0xFF);
-    bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
-
-    bytes[7] = (byte)((bytes[7] & 0x0F) | 0x70);
-
-    return new Guid(bytes);
-}
-```
-
-And finally, for .NET standard: 
-
-```csharp
-public static Guid CreateVersion7Precise(DateTimeOffset d)
-{
+#else
     byte[] bytes = Guid.NewGuid().ToByteArray();
 
     long totalMilliseconds = d.ToUnixTimeMilliseconds();
@@ -137,8 +108,9 @@ public static Guid CreateVersion7Precise(DateTimeOffset d)
     bytes[0] = (byte)(totalMilliseconds >> 0x10);
     bytes[5] = (byte)(totalMilliseconds >> 0x08);
     bytes[4] = (byte)(totalMilliseconds);
+#endif
 
-    int fracNumerator = (int)Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
+    int fracNumerator = (int) Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
     bytes[6] = (byte)(fracNumerator & 0xFF);
     bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
 
