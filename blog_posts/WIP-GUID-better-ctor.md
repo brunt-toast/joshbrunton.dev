@@ -1,29 +1,16 @@
 In .NET, `Guid.CreateVersion7()` ignores the optional sub-millisecond precision allowed for by RFC 9562. This post details how to increase the maximum precision from 1ms to 2.44140625ns. And, of course, with zero allocations to the managed heap.
 
-## Starting Out 
+## A note on entropy   
 
 RFC 9562 §6.9 states that "Implementations **SHOULD** utilize a cryptographically secure pseudorandom number generator". 
 
 Some investigation into the file `src/runtime/src/libraries/System.Private.CoreLib/src/System/Guid.cs` in the .NET monorepo shows that under the hood, `Guid.CreateVersion7()` wraps `Guid.NewGuid()`, which farms out responsibility for the CSPRNG to the system. 
 
-To keep this security, we'll start with a span of bytes containing a random GUID from the existing implementation. 
-
-```csharp
-static Guid CreateVersion7Precise(DateTimeOffset d)
-{
-    Span<byte> bytes = stackalloc byte[16];
-    _ = Guid.NewGuid().TryWriteBytes(bytes);
-    
-    // ...
-}
-```
-
->[!NOTE]
-> We don't expect `TryWriteBytes()` to fail here. As of time of writing, the only reason it would fail is if `bytes` didn't have enough space, but we know that `Guid.NewGuid()` and the later used `Guid.CreateVersion7()` will always be exactly 16 bytes.
+To keep this security, we'll wrap and modify the existing GUID factory methods, instead of populating the random bits ourslves. 
 
 ## Setting the millisecond-precision timestamp 
 
-Our next point of business is encoding the timestamp with millisecond-level precision. 
+The first point of business is encoding the timestamp with millisecond-level precision. 
 
 With .NET 9.0 and greater, we can farm this out to the existing `CreateVersion7()`.
 
@@ -32,9 +19,15 @@ Span<byte> bytes = stackalloc byte[16];
 _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 ```
 
+>[!NOTE]
+> We don't expect `TryWriteBytes()` to fail here. As of time of writing, the only reason it would fail in any version of .NET is if `bytes` didn't have enough space, but we know that `Guid.NewGuid()` and `Guid.CreateVersion7()` will always be exactly 16 bytes.
+
 If using between .NET Core 2.1 and .NET 8.x, or .NET Standard 2.1, this has to be done manually. The below example demonstrates the appropriate mapping in case you're subject to this limitation.  
 
 ```csharp
+Span<byte> bytes = stackalloc byte[16];
+_ = Guid.NewGuid().TryWriteBytes(bytes);
+
 long totalMilliseconds = d.ToUnixTimeMilliseconds();
 bytes[3] = (byte)(totalMilliseconds >> 0x28);
 bytes[2] = (byte)(totalMilliseconds >> 0x20);
@@ -45,6 +38,18 @@ bytes[4] = (byte)(totalMilliseconds);
 ```
 
 All other versions (.NET Core &le; 2.0, .NET Standard &le; 2.0, .NET Framework) also don't support `Guid.TryWriteBytes()`. Instead, use `.ToByteArray()` instead, which will cause a heap allocation of 2352 bytes. 
+
+```csharp
+byte[] bytes = Guid.NewGuid().ToByteArray();
+
+long totalMilliseconds = d.ToUnixTimeMilliseconds();
+bytes[3] = (byte)(totalMilliseconds >> 0x28);
+bytes[2] = (byte)(totalMilliseconds >> 0x20);
+bytes[1] = (byte)(totalMilliseconds >> 0x18);
+bytes[0] = (byte)(totalMilliseconds >> 0x10);
+bytes[5] = (byte)(totalMilliseconds >> 0x08);
+bytes[4] = (byte)(totalMilliseconds);
+```
 
 ## Setting the fractional component 
 
