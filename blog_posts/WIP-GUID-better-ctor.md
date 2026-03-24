@@ -12,17 +12,20 @@ To keep this security, we'll start with a span of bytes containing a random GUID
 static Guid CreateVersion7Precise(DateTimeOffset d)
 {
     Span<byte> bytes = stackalloc byte[16];
-    Guid.NewGuid().TryWriteBytes(bytes);
+    _ = Guid.NewGuid().TryWriteBytes(bytes);
     
     // ...
 }
 ```
 
+>[!NOTE]
+> We don't expect `TryWriteBytes()` to fail here. As of time of writing, the only reason it would fail is if `bytes` didn't have enough space, but we know that `Guid.NewGuid()` and the later used `Guid.CreateVersion7()` will always be exactly 16 bytes.
+
 ## Setting the millisecond-precision timestamp 
 
 Our next point of business is encoding the timestamp with millisecond-level precision. 
 
-If this was .NET 8 or lower, we'd have to do this manually: 
+If using .NET 8 or lower, we'd have to do this manually. The below example demonstrates the appropriate mapping in case you're subject to this limitation.  
 
 ```csharp
 long totalMilliseconds = d.ToUnixTimeMilliseconds();
@@ -34,12 +37,15 @@ bytes[5] = (byte)(totalMilliseconds >> 0x08);
 bytes[4] = (byte)(totalMilliseconds);
 ```
 
-But with .NET 9.0 or greater, we can farm this out to the existing `CreateVersion7()` method instead.
+But with .NET 9.0 and greater, we can farm this out to the existing `CreateVersion7()` method instead.
 
 ```csharp
 Span<byte> bytes = stackalloc byte[16];
-Guid.CreateVersion7(d).TryWriteBytes(bytes);
+_ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 ```
+
+>[!NOTE]
+> .NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation. 
 
 ## Setting the fractional component 
 
@@ -80,7 +86,7 @@ Putting all this together, our complete method for enhanced precision GUID v7 ge
 static Guid CreateVersion7Precise(DateTimeOffset d)
 {
     Span<byte> bytes = stackalloc byte[16];
-    Guid.CreateVersion7(d).TryWriteBytes(bytes);
+    _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 
     int fracNumerator = (int) Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
     bytes[6] = (byte)(fracNumerator & 0xFF);
@@ -103,5 +109,5 @@ $$
 Or, in code: 
 
 ```csharp
-Assert.IsTrue(Math.Abs(left.Ticks - right.Ticks) <= 2);
+Math.Abs(left.Ticks - right.Ticks) <= 2;
 ```
