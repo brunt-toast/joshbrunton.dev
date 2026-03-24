@@ -44,7 +44,7 @@ Span<byte> bytes = stackalloc byte[16];
 _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 ```
 
-.NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation. 
+.NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation of 2352 bytes. 
 
 ## Setting the fractional component 
 
