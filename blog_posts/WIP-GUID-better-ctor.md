@@ -44,8 +44,7 @@ Span<byte> bytes = stackalloc byte[16];
 _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 ```
 
->[!NOTE]
-> .NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation. 
+.NET framework and standard don't support `Guid.TryWriteBytes()`. You'll need to use `.ToByteArray()` instead, which will cause a heap allocation. 
 
 ## Setting the fractional component 
 
@@ -89,6 +88,57 @@ static Guid CreateVersion7Precise(DateTimeOffset d)
     _ = Guid.CreateVersion7(d).TryWriteBytes(bytes);
 
     int fracNumerator = (int) Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
+    bytes[6] = (byte)(fracNumerator & 0xFF);
+    bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
+
+    bytes[7] = (byte)((bytes[7] & 0x0F) | 0x70);
+
+    return new Guid(bytes);
+}
+```
+
+For .NET Core 8 and lower: 
+
+```csharp
+public static Guid CreateVersion7Precise(DateTimeOffset d)
+{
+    Span<byte> bytes = stackalloc byte[16];
+    Guid.NewGuid().TryWriteBytes(bytes);
+
+    long totalMilliseconds = d.ToUnixTimeMilliseconds();
+    bytes[3] = (byte)(totalMilliseconds >> 0x28);
+    bytes[2] = (byte)(totalMilliseconds >> 0x20);
+    bytes[1] = (byte)(totalMilliseconds >> 0x18);
+    bytes[0] = (byte)(totalMilliseconds >> 0x10);
+    bytes[5] = (byte)(totalMilliseconds >> 0x08);
+    bytes[4] = (byte)(totalMilliseconds);
+
+    int fracNumerator = (int)Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
+    bytes[6] = (byte)(fracNumerator & 0xFF);
+    bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
+
+    bytes[7] = (byte)((bytes[7] & 0x0F) | 0x70);
+
+    return new Guid(bytes);
+}
+```
+
+And finally, for .NET standard: 
+
+```csharp
+public static Guid CreateVersion7Precise(DateTimeOffset d)
+{
+    byte[] bytes = Guid.NewGuid().ToByteArray();
+
+    long totalMilliseconds = d.ToUnixTimeMilliseconds();
+    bytes[3] = (byte)(totalMilliseconds >> 0x28);
+    bytes[2] = (byte)(totalMilliseconds >> 0x20);
+    bytes[1] = (byte)(totalMilliseconds >> 0x18);
+    bytes[0] = (byte)(totalMilliseconds >> 0x10);
+    bytes[5] = (byte)(totalMilliseconds >> 0x08);
+    bytes[4] = (byte)(totalMilliseconds);
+
+    int fracNumerator = (int)Math.Min((d.Ticks % 10000 * 4096 + 5000) / 10_000, 4095);
     bytes[6] = (byte)(fracNumerator & 0xFF);
     bytes[7] = (byte)((fracNumerator >> 8) & 0x0F);
 
