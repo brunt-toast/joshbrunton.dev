@@ -30,7 +30,7 @@ This is limited to one declaration per global.json file, so mileage may vary for
 
 So long as the specific named SDK version in global.json actually exists, you don't need to track it down manually among the hundreds of SDK versions online. You can use the dotnet install scripts to do the work for you. 
 
-First, download the latest version of the install script, from https://dot.net/v1/dotnet-install.ps1 (Windows) or https://dot.net/v1/dotnet-install.sh (MacOS &amp; Linux). Then, run the script with the arguments `--jsonfile ./globaljson`. This will automatically install the named version and make it available globally on the system. 
+First, download the latest version of the install script, from https://dot.net/v1/dotnet-install.ps1 (Windows) or https://dot.net/v1/dotnet-install.sh (MacOS &amp; Linux). Then, run the script with the arguments `--jsonfile ./global.json`. This will automatically install the named version and make it available globally on the system. 
 
 This seems like we've strayed a little bit outside the .NET command alone, but don't worry, we'll get back to that later (and there will be cake!)
 
@@ -142,12 +142,28 @@ The specifics of the cakefile are far too much to get into here, so check out th
 You may, however, want to include the following target, which will automatically install the .NET SDK required by global.json as described earlier. Additional code is included to perform a checksum on the install script if GPG is available, since running a shell script from the internet without manually checking its contents is a risky move. Note that PowerShell will refuse to run any file that doesn't have a .ps1 extension, so if the task fails on Windows, the powershell script will persist and may be accidentally added to version control if not careful.
 
 ```csharp
-Task("Install-Sdk").Does(() =>
+Task("InstallSdk").Does(() =>
 {
+    var sdkFiles = GetFiles("./**/*.sdk.json")
+        .Concat(GetFiles("./**/sdk.json"))
+        .Distinct()
+        .ToList();
+
+    if (!sdkFiles.Any())
+    {
+        return;
+    }
+
     if (IsRunningOnWindows())
     {
         StartProcess("pwsh", "-Command \"Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile ./dotnet-install.ps1\"");
-        StartProcess("pwsh", "-ExecutionPolicy Bypass -File ./dotnet-install.ps1 --jsonfile ./global.json");
+
+        foreach (var sdkFile in sdkFiles)
+        {
+            Information($"Installing SDK from {sdkFile}");
+            StartProcess("pwsh", $"-ExecutionPolicy Bypass -File ./dotnet-install.ps1 --jsonfile \"{sdkFile}\"");
+        }
+
         StartProcess("pwsh", "-Command \"Remove-Item -Path ./dotnet-install.ps1\"");
     }
     else
@@ -170,8 +186,12 @@ Task("Install-Sdk").Does(() =>
         }
 
         StartProcess("sh", "-c \"chmod +x ./dotnet-install.sh.tmp\"");
-        StartProcess("sh", "-c \"./dotnet-install.sh.tmp --jsonfile ./global.json\"");
-        
+
+        foreach (var sdkFile in sdkFiles)
+        {
+            StartProcess("sh", $"-c \"./dotnet-install.sh.tmp --jsonfile '{sdkFile}'\"");
+        }
+
         StartProcess("sh", "-c \"rm ./dotnet-install.sh.tmp\"");
     }
 });
