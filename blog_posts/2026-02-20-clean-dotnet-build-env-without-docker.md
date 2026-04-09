@@ -1,129 +1,68 @@
 ---
-title: A clean .NET build environment without Docker
+title: Abusing the .NET SDK for a fully configured environment in 0 commands
 date: 2026-02-20
-tags: [.NET, NuGet]
+tags: [.NET]
 ---
 
-Docker is a great tool to mitigate the "it works on my machine" problem, but it can be slow, heavy, and confusing, especially when developing for web when certificates are required. 
+There are a million different versions of .NET out there. The chance that you have the very specific right one when cloning a repository is minimal. While Docker attempted to solve this problem, it has its limitations. Wouldn't it be far better if NuGet sources and SDK versions could just work, like they do in other ecosystems? 
 
-This post details how to set up a consistent .NET build environment, starting with only the `dotnet` command you already have. 
+With the method described below, you can make sure developers can build and run your .NET Core project without any faff to resolve dependencies, so long as they have the .NET SDK version 6 or later.  
 
-## Managing SDK versions 
+## Skipping NuGet restore against redundant sources 
 
-The varying SDK versions get confusing fast. It's unduly common to have to dig through a repository for all the SDK versions used, then search around the internet to install those versions, and finally select the right one to build the startup project. 
+If you use any private NuGet sources, you're probably familiar with the endless cycle. Your restore fails due to a permissions or mapping error, you run `dotnet nuget list source`, `dotnet nuget disable source CompanyInternal`, `dotnet nuget enable source CompanyInternal`, repeat ad infinitum. 
 
-Since the .NET Core 3.1 SDK, the dotnet command recognises a config file called global.json. One purpose of this file is to declare the valid SDK version(s) for a directory. 
+Great news: it doesn't have to be like this! You can use the [nuget.config](https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file) file to configure NuGet sources at the repository level, which prevents users from calling out to redundant private sources and make sure that all the sources you *are* using are available and enabled. 
 
-Let's say you want to build using .NET 10.0.100 exactly. In your global.json file, you can write: 
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+  <disabledPackageSources>
+    <clear />
+  </disabledPackageSources>
+</configuration>
+```
+
+>[!TIP]
+> If you're using multiple sources, you can also use nuget.config to configure package source mapping for a performance boost (and to be kinder to your sources!)
+
+## Listing the SDK(s) you want
+
+Modern versions of the .NET CLI recognise a file called "[global.json](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json
+)", which defines which SDK version(s) are valid in the current directory and causes the dotnet command to fail if it doesn't have the right one. 
+
+Since we just want the information from here, and not the protection against running commands (which would shoot us in the foot later on), we'll define all the SDKs we need in files `/sdk/*.json`. Because we'll be using this information to install the SDK later on, you'll need to use a version number that exactly matches a released version in major, minor, and patch. 
+
+Say a project relies on the .NET 10 SDK - we can add the following to `/sdk/net10.0.100.json`. 
+
 ```json
 {
   "sdk": {
-    "version": "8.0.300",
-    "rollForward": "latestFeature"
+    "version": "10.0.100",
+    "rollForward": "disable"
   }
 }
 ```
 
-This is limited to one declaration per global.json file, so mileage may vary for projects with multiple targets. 
+## Listing the tools you want 
 
-## Installing SDK versions 
+In the file `.config/dotnet-tools.json` (known as the [tool manifest](https://learn.microsoft.com/en-us/dotnet/core/tools/local-tools-how-to-use)), we can define a list of tools we recommend for a repository. This file can be created automatically using `dotnet new tool-manifest`, and will be automatically updated when running `dotnet tool` commands. 
 
-So long as the specific named SDK version in global.json actually exists, you don't need to track it down manually among the hundreds of SDK versions online. You can use the dotnet install scripts to do the work for you. 
-
-First, download the latest version of the install script, from https://dot.net/v1/dotnet-install.ps1 (Windows) or https://dot.net/v1/dotnet-install.sh (MacOS &amp; Linux). Then, run the script with the arguments `--jsonfile ./global.json`. This will automatically install the named version and make it available globally on the system. 
-
-This seems like we've strayed a little bit outside the .NET command alone, but don't worry, we'll get back to that later (and there will be cake!)
-
-## Manage NuGet sources 
-
-If you've ever worked with a private NuGet source, you might know the pain of having to authenticate with or disable a source to get something to work. The nuget.config file can address exactly that problem. 
-
-If you've ever used nuget before - which, chances are, you have - you'll already have a user and perhaps a system configuration. The following table shows where they're located: 
-
-| OS | Scope | Path |
-| --- | --- | --- |
-| Windows | User  | %APPDATA%\NuGet\NuGet.Config |
-| Windows | Computer | %ProgramFiles(x86)%\NuGet\Config |
-| MacOS | User | ~/.config/NuGet/NuGet.Config (mono) ~/.nuget/NuGet/NuGet.Config (dotnet) |
-| MacOS | Computer | /Library/ApplicationSupport or $NUGET_COMMON_APPLICATION_DATA/ |
-| Linux | User | ~/.config/NuGet/NuGet.Config (mono) or ~/.nuget/NuGet/NuGet.Config (dotnet)  |
-| Linux | Computer | /etc/opt/NuGet/Config or $NUGET_COMMON_APPLICATION_DATA/  |
-
-Since nuget config is inherited, we'll need to start with a blank slate in our repository's nuget.config by clearing our existing package sources. 
-
-```xml
-<packageSources>
-    <clear />
-</packageSources>
-```
-
-Next up, we can add the sources we actually want to use: 
-
-```xml
-<packageSources>
-    <clear />
-    <add key="nuget" value="https://api.nuget.org/v3/index.json" />
-</packageSources>
-```
-
-And make sure they're enabled, even if they're disabled at a higher level. 
-
-```xml
-<disabledPackageSources>
-    <clear />
-</disabledPackageSources>
-```
-
-We can improve performance by reducing the number of redundant calls made using package source mapping: 
-
-```xml
-<packageSourceMapping>
-    <packageSource key="nuget">
-        <package pattern="*" />
-    </packageSource>
-</packageSourceMapping>
-```
-
-And, if security is not a concern, add credentials for custom package sources. 
-
-```xml
-<packageSourceCredentials>
-    <My.Packages>
-        <add key="Username" value="someone@example.com" />
-        <add key="ClearTextPassword" value="SuperSecretToken" />
-    </My.Packages>
-</packageSourceCredentials>
-```
-
-With all this, we have complete control over the available and enabled NuGet sources for our repository. 
-
-## Managing and installing dotnet tools 
-
-.NET tools are NuGet packages that contain a program that can be invoked from the command line. `dotnet-ef` is a particularly popular one, used for interacting with the Entity Framework ORM. 
-
-You can recommend tools in your repository by using the tool manifest, a JSON file describing names and versions of dotnet tools. 
-
-You can create a manifest by using `dotnet new tool-manifest`, or by manually creating the file `.config/dotnet-tools.json` with the following content: 
-
-```json
-{
-  "version": 1,
-  "isRoot": true,
-  "tools": {}
-}
-```
-
-Then, any time you use `dotnet tool install`, the installed tool will be added to the config. After running `dotnet tool install dotnet-ef`, the manifest would look like: 
+We're going to need [cake](https://cakebuild.net/) (`dotnet tool install cake.tool`), a build system for .NET conceptually inspired by make, with the twist that it's configured in C#. Once it's installed, the tool manifest should look like this: 
 
 ```json
 {
   "version": 1,
   "isRoot": true,
   "tools": {
-    "dotnet-ef": {
-      "version": "10.0.3",
+    "cake.tool": {
+      "version": "5.1.0",
       "commands": [
-        "dotnet-ef"
+        "dotnet-cake"
       ],
       "rollForward": false
     }
@@ -131,28 +70,21 @@ Then, any time you use `dotnet tool install`, the installed tool will be added t
 }
 ```
 
-You can quickly install all tools in a manifest by using the command `dotnet tool restore`. 
+## Putting it all together... 
 
-## Build scripts using Cake 
+Putting together everything we've learned so far, we can build a cake target that uses the official [dotnet install scripts](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script) to automatically download the required SDKs onto our system. If running on MacOS or Linux with the GPG command available, we can also perform a checksum on the script we download. 
 
-The most popular dotnet tool on nuget.org is Cake, a build automation system inspired by GNU Make. You can install it using `dotnet tool install cake.tool`. You may also want to use `dotnet new install Cake.Template` for the cakefile template - if you do, you can create a cakefile using `dotnet new cakefile`. 
-
-The specifics of the cakefile are far too much to get into here, so check out the [Getting Started docs](https://cakebuild.net/docs/getting-started/setting-up-a-new-cakesdk-project). 
-
-You may, however, want to include the following target, which will automatically install the .NET SDK required by global.json as described earlier. Additional code is included to perform a checksum on the install script if GPG is available, since running a shell script from the internet without manually checking its contents is a risky move. Note that PowerShell will refuse to run any file that doesn't have a .ps1 extension, so if the task fails on Windows, the powershell script will persist and may be accidentally added to version control if not careful.
+The following script, which should live in `build.cake`, will automatically install every SDK defined in `/sdk/*.json`. It's compatible with Windows, MacOS, and Linux, and will verify file integrity using GPG when available. 
 
 ```csharp
+var target = Argument("target", "InstallSdk");
+
 Task("InstallSdk").Does(() =>
 {
-    var sdkFiles = GetFiles("./**/*.sdk.json")
-        .Concat(GetFiles("./**/sdk.json"))
-        .Distinct()
-        .ToList();
+    var sdkFiles = GetFiles("./sdk/*.json").ToList();
 
     if (!sdkFiles.Any())
-    {
         return;
-    }
 
     if (IsRunningOnWindows())
     {
@@ -163,10 +95,8 @@ Task("InstallSdk").Does(() =>
             DownloadFile("https://dot.net/v1/dotnet-install.ps1", scriptFile);
 
             foreach (var sdkFile in sdkFiles)
-            {
                 StartProcess("pwsh", 
                     new ProcessSettings { Arguments = $"-ExecutionPolicy Bypass -File \"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\"" });
-            }
         }
         finally
         {
@@ -210,9 +140,18 @@ Task("InstallSdk").Does(() =>
         }
     }
 });
+
+RunTarget(target);
 ```
 
-In Directory.Build.targets
+To run this, we'll use `dotnet tool restore` to ensure cake is installed (with nuget.config ensuring that it's discoverable), then `dotnet cake --target InstallSdk` to install the SDK(s). 
+
+## But didn't I promise 0 commands? 
+
+It might be a bit much to expect every developer to read the file which is &lt;sarcasm&gt;so confusingly&lt;/sarcasm&gt; named README.md and follow the simple instructions therein. It's easier if we just have our SDK restore happen automatically when the user needs it. 
+
+We can hook into the MSBuild compiler pipeline by defining a custom target. The below one, which should be placed in file `Directory.Build.targets`, will cause our cake restore to run before build. It'll only run for the project that was specifically named to be built, and only once (adding a cache file in the project's `obj` folder to speed up subsequent builds). 
+
 ```xml
 <Project>
     <Target Name="PreBootstrapSdk"
@@ -243,3 +182,27 @@ In Directory.Build.targets
     </Target>
 </Project>
 ```
+
+## Security considerations
+
+Strictly speaking, we're running code that the user might not expect to run. It's curteous to be up-front about the fact that you're doing this in your README so as not to scare unwitting developers. 
+
+The way we're using the install scripts here is basically the cake equivalent of `curl | sh` (or `irm | iex` for Windows users): downloading code from the internet and running it without checking what it does. While the GPG check provides an added layer of assurance, you might want to download the install scripts into your repo for an absolute guarantee of security (and to reduce network traffic, which is always a good thing). 
+
+Finally, be wary of running nuget auth commands while under the scope of a local nuget.config file. If you're not careful, you could end up committing a personal secret. 
+
+## Afterword 
+
+By combining many niche and useful aspects of the .NET SDK with a simple cake build script, we've guaranteed that any developer who clones your repo should be able to get started effortlessly while having to do nothing more than their usual build/run workflow. 
+
+## References 
+
+https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file
+
+https://learn.microsoft.com/en-us/dotnet/core/tools/global-json
+
+https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
+
+https://learn.microsoft.com/en-us/dotnet/core/tools/local-tools-how-to-use
+
+https://cakebuild.net/
