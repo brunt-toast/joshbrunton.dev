@@ -1,10 +1,12 @@
 ---
-title: Abusing the .NET SDK for a fully configured environment in 0 commands
+title: Hacking the .NET SDK for a fully configured environment in 0 commands
 date: 2026-02-20
 tags: [.NET]
 ---
 
-There are a million different versions of .NET out there. The chance that you have the very specific right one when cloning a repository is minimal. While Docker attempted to solve this problem, it has its limitations. Wouldn't it be far better if NuGet sources and SDK versions could just work, like they do in other ecosystems? 
+*Author's note - I use the term "hacking" in the 90s sense of "tinkering". This is actually perfectly fine to do.*
+
+There are a *lot* of different versions of .NET out there. The chance that you have the very specific right one when cloning a repository is minimal. While Docker attempted to solve this problem, it has its limitations, notably high startup time overhead and complexity when managing certificates for HTTPS applications. Wouldn't it be far better if NuGet sources and SDK versions could just work, like they do in other ecosystems? 
 
 With the method described below, you can make sure developers can build and run your .NET Core project without any faff to resolve dependencies, so long as they have the .NET SDK version 6 or later.  
 
@@ -12,7 +14,7 @@ With the method described below, you can make sure developers can build and run 
 
 If you use any private NuGet sources, you're probably familiar with the endless cycle. Your restore fails due to a permissions or mapping error, you run `dotnet nuget list source`, `dotnet nuget disable source CompanyInternal`, `dotnet nuget enable source CompanyInternal`, repeat ad infinitum. 
 
-Great news: it doesn't have to be like this! You can use the [nuget.config](https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file) file to configure NuGet sources at the repository level, which prevents users from calling out to redundant private sources and make sure that all the sources you *are* using are available and enabled. 
+Great news: it doesn't have to be like this! You can use the [nuget.config](https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file) file to configure NuGet sources at the repository level, which prevents users from calling out to redundant private sources and makes sure that all the sources you *are* using are available and enabled. 
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -35,7 +37,7 @@ Great news: it doesn't have to be like this! You can use the [nuget.config](http
 Modern versions of the .NET CLI recognise a file called "[global.json](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json
 )", which defines which SDK version(s) are valid in the current directory and causes the dotnet command to fail if it doesn't have the right one. 
 
-Since we just want the information from here, and not the protection against running commands (which would shoot us in the foot later on), we'll define all the SDKs we need in files `/sdk/*.json`. Because we'll be using this information to install the SDK later on, you'll need to use a version number that exactly matches a released version in major, minor, and patch. 
+We don't want to add our own global.json, because that could block execution when we need it and don't care about the SDK. Instead, we'll follow its syntax, but define all the SDKs we need in files `/sdk/*.json`. Because we'll be using this information to install the SDK later on, you'll need to use a version number that exactly matches a released version - major, minor, and patch must all match a released version. 
 
 Say a project relies on the .NET 10 SDK - we can add the following to `/sdk/net10.0.100.json`. 
 
@@ -52,7 +54,7 @@ Say a project relies on the .NET 10 SDK - we can add the following to `/sdk/net1
 
 In the file `.config/dotnet-tools.json` (known as the [tool manifest](https://learn.microsoft.com/en-us/dotnet/core/tools/local-tools-how-to-use)), we can define a list of tools we recommend for a repository. This file can be created automatically using `dotnet new tool-manifest`, and will be automatically updated when running `dotnet tool` commands. 
 
-We're going to need [cake](https://cakebuild.net/) (`dotnet tool install cake.tool`), a build system for .NET conceptually inspired by make, with the twist that it's configured in C#. Once it's installed, the tool manifest should look like this: 
+We're going to need [Cake](https://cakebuild.net/) (`dotnet tool install cake.tool`), a task runner/build orchestration tool for .NET conceptually inspired by make, with the twist that it's configured in C#. Once it's installed, the tool manifest should look like this: 
 
 ```json
 {
@@ -72,98 +74,45 @@ We're going to need [cake](https://cakebuild.net/) (`dotnet tool install cake.to
 
 ## Putting it all together... 
 
-Putting together everything we've learned so far, we can build a cake target that uses the official [dotnet install scripts](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script) to automatically download the required SDKs onto our system. If running on MacOS or Linux with the GPG command available, we can also perform a checksum on the script we download. 
+Putting together everything we've learned so far, we can build a Cake target that uses the official [dotnet install scripts](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script) to automatically download the required SDKs onto our system. 
 
-The following script, which should live in `build.cake`, will automatically install every SDK defined in `/sdk/*.json`. It's compatible with Windows, MacOS, and Linux, and will verify file integrity using GPG when available. 
+To reduce network traffic, and more importantly for security reasons, we should cache these install scripts in the repo, under `/script/dotnet-install.{ps1,sh}`. Once the scripts are in place, the following Cake script, which should live in `build.cake`, will automatically install every SDK defined in `/sdk/*.json`. 
 
 ```csharp
 var target = Argument("target", "InstallSdk");
 
 Task("InstallSdk").Does(() =>
 {
-    var sdkFiles = GetFiles("./sdk/*.json").ToList();
-
-    if (!sdkFiles.Any())
-        return;
-
     if (IsRunningOnWindows())
     {
-        var scriptFile = File("./dotnet-install.ps1");
-
-        try
-        {
-            DownloadFile("https://dot.net/v1/dotnet-install.ps1", scriptFile);
-
-            foreach (var sdkFile in sdkFiles)
-                StartProcess("pwsh", 
-                    new ProcessSettings { Arguments = $"-ExecutionPolicy Bypass -File \"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\"" });
-        }
-        finally
-        {
-            if (FileExists(scriptFile))
-                DeleteFile(scriptFile);
-        }
+        StartProcess("pwsh", "-ExecutionPolicy Bypass -File ./script/dotnet-install.ps1 --jsonfile ./global.json");
     }
     else
     {
-        var scriptFile = File("./dotnet-install.sh");
-        var ascFile = File("./dotnet-install.asc");
-        var sigFile = File("./dotnet-install.sig");
-
-        try
-        {
-            DownloadFile("https://dot.net/v1/dotnet-install.sh", scriptFile);
-
-            if (Context.Tools.Resolve("gpg") != null)
-            {
-                DownloadFile("https://dot.net/v1/dotnet-install.asc", ascFile);
-                DownloadFile("https://dot.net/v1/dotnet-install.sig", sigFile);
-
-                StartProcess("gpg",
-                    new ProcessSettings { Arguments = $"--import \"{MakeAbsolute(ascFile)}\"" });
-
-                var exitCode = StartProcess("gpg",
-                    new ProcessSettings { Arguments = $"--verify \"{MakeAbsolute(sigFile)}\" \"{MakeAbsolute(scriptFile)}\"" });
-
-                if (exitCode != 0)
-                    throw new CakeException("The dotnet install script failed the GPG integrity check.");
-            }
-
-            foreach (var sdkFile in sdkFiles)
-                StartProcess("/bin/bash", new ProcessSettings{ Arguments = $"\"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\"" });
-        }
-        finally
-        {
-            if (FileExists(scriptFile))DeleteFile(scriptFile);
-            if (FileExists(ascFile)) DeleteFile(ascFile);
-            if (FileExists(sigFile)) DeleteFile(sigFile);
-        }
+        StartProcess("bash", "./script/dotnet-install.sh --jsonfile ./global.json");
     }
 });
 
 RunTarget(target);
 ```
 
-To run this, we'll use `dotnet tool restore` to ensure cake is installed (with nuget.config ensuring that it's discoverable), then `dotnet cake --target InstallSdk` to install the SDK(s). 
+To run this, we'll use `dotnet tool restore` to ensure Cake is installed (with nuget.config ensuring that it's discoverable), then `dotnet cake --target InstallSdk` to install the SDK(s). 
 
 ## But didn't I promise 0 commands? 
 
 It might be a bit much to expect every developer to read the file which is &lt;sarcasm&gt;so confusingly&lt;/sarcasm&gt; named README.md and follow the simple instructions therein. It's easier if we just have our SDK restore happen automatically when the user needs it. 
 
-We can hook into the MSBuild compiler pipeline by defining a custom target. The below one, which should be placed in file `Directory.Build.targets`, will cause our cake restore to run before build. It'll only run for the project that was specifically named to be built, and only once (adding a cache file in the project's `obj` folder to speed up subsequent builds). 
+We can hook into the MSBuild compiler pipeline by defining a custom target. The below one, which should be placed in file `Directory.Build.targets`, will cause our Cake SDK restore to run before build. It will run once, generating a cache file to prevent itself from redundantly running again. 
 
 ```xml
 <Project>
-    <Target Name="PreBootstrapSdk"
-        BeforeTargets="PrepareForBuild"
-        Condition="
-  '$(MSBuildProjectFullPath)' == '$(MSBuildProjectFullPath)' 
-  AND '$(IsCrossTargetingBuild)' != 'true'
-  AND '$(BuildingProject)' == 'true'
-  AND !Exists('$(BaseIntermediateOutputPath)prebootstrap.cache')">
+  <Target Name="PreBootstrapSdk"
+          BeforeTargets="PrepareForBuild"
+          Condition="!Exists('$(MSBuildThisFileDirectory).prebootstrap.cache')">
 
     <PropertyGroup>
       <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+      <CacheFile>$(MSBuildThisFileDirectory).prebootstrap.cache</CacheFile>
     </PropertyGroup>
 
     <MakeDir Directories="$(BaseIntermediateOutputPath)" />
@@ -171,29 +120,26 @@ We can hook into the MSBuild compiler pipeline by defining a custom target. The 
     <Exec Command="dotnet tool restore"
           WorkingDirectory="$(RepoRoot)" />
 
-    <Exec Command="dotnet cake --target InstallSdk"
+    <Exec Command="dotnet cake ./build.cake --target InstallSdk"
           WorkingDirectory="$(RepoRoot)" />
 
     <WriteLinesToFile
-        File="$(BaseIntermediateOutputPath)prebootstrap.cache"
+        File="$(CacheFile)"
         Lines="done"
         Overwrite="true" />
-
-    </Target>
+  </Target>
 </Project>
 ```
 
 ## Security considerations
 
-Strictly speaking, we're running code that the user might not expect to run. It's curteous to be up-front about the fact that you're doing this in your README so as not to scare unwitting developers. 
+Strictly speaking, we're introducing implicit code execution during build. It's courteous to be up-front about the fact that you're doing this in your README so as not to scare unwitting developers. 
 
-The way we're using the install scripts here is basically the cake equivalent of `curl | sh` (or `irm | iex` for Windows users): downloading code from the internet and running it without checking what it does. While the GPG check provides an added layer of assurance, you might want to download the install scripts into your repo for an absolute guarantee of security (and to reduce network traffic, which is always a good thing). 
-
-Finally, be wary of running nuget auth commands while under the scope of a local nuget.config file. If you're not careful, you could end up committing a personal secret. 
+Also, be wary of running nuget auth commands while under the scope of a local nuget.config file. If you're not careful, you could end up committing a personal secret. 
 
 ## Afterword 
 
-By combining many niche and useful aspects of the .NET SDK with a simple cake build script, we've guaranteed that any developer who clones your repo should be able to get started effortlessly while having to do nothing more than their usual build/run workflow. 
+By combining many niche and useful aspects of the .NET SDK with a simple Cake build script, we've guaranteed that any developer who clones your repo should be able to get started effortlessly while having to do nothing more than their usual build/run workflow. 
 
 ## References 
 
