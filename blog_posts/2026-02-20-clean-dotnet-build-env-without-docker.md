@@ -83,13 +83,20 @@ var target = Argument("target", "InstallSdk");
 
 Task("InstallSdk").Does(() =>
 {
-    if (IsRunningOnWindows())
+    IEnumerable<FilePath> sdkFiles = GetFiles("./**/*.sdk.json")
+        .Concat(GetFiles("./**/sdk.json"))
+        .Distinct();
+
+    foreach (FilePath sdkFile in sdkFiles)
     {
-        StartProcess("pwsh", "-ExecutionPolicy Bypass -File ./script/dotnet-install.ps1 --jsonfile ./global.json");
-    }
-    else
-    {
-        StartProcess("bash", "./script/dotnet-install.sh --jsonfile ./global.json");
+        if (IsRunningOnWindows())
+        {
+            StartProcess("pwsh", $"-ExecutionPolicy Bypass -File ./script/dotnet-install.ps1 --jsonfile {sdkFile}");
+        }
+        else
+        {
+            StartProcess("bash", $"./script/dotnet-install.sh --jsonfile {sdkFile}");
+        }
     }
 });
 
