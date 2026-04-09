@@ -106,7 +106,7 @@ To run this, we'll use `dotnet tool restore` to ensure Cake is installed (with n
 
 It might be a bit much to expect every developer to read the file which is &lt;sarcasm&gt;so confusingly&lt;/sarcasm&gt; named README.md and follow the simple instructions therein. It's easier if we just have our SDK restore happen automatically when the user needs it. 
 
-We can hook into the MSBuild compiler pipeline by defining a custom target. The below one, which should be placed in file `Directory.Build.targets`, will cause our Cake SDK restore to run before build. It will run once, generating a cache file to prevent itself from redundantly running again. 
+We can hook into the MSBuild compiler pipeline by defining a custom target. The below one, which should be placed in file `Directory.Build.targets`, will cause our Cake SDK restore to run before build. It will run once, generating a cache file to prevent itself from redundantly running again. (You'll probably want to make sure `.prebootstrap.cache` is ignored by version control and maybe hidden in the IDE.)
 
 ```xml
 <Project>
