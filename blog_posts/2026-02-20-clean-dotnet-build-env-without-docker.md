@@ -44,8 +44,7 @@ Say a project relies on the .NET 10 SDK - we can add the following to `/sdk/net1
 ```json
 {
   "sdk": {
-    "version": "10.0.100",
-    "rollForward": "disable"
+    "version": "10.0.100"
   }
 }
 ```
@@ -83,9 +82,7 @@ var target = Argument("target", "InstallSdk");
 
 Task("InstallSdk").Does(() =>
 {
-    IEnumerable<FilePath> sdkFiles = GetFiles("./**/*.sdk.json")
-        .Concat(GetFiles("./**/sdk.json"))
-        .Distinct();
+    IEnumerable<FilePath> sdkFiles = GetFiles("./sdk/*.json").Distinct();
 
     foreach (FilePath sdkFile in sdkFiles)
     {
