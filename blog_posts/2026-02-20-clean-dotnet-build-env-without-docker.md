@@ -164,18 +164,14 @@ Task("InstallSdk").Does(() =>
 
             foreach (var sdkFile in sdkFiles)
             {
-                StartProcess("pwsh", new ProcessSettings
-                {
-                    Arguments = $"-ExecutionPolicy Bypass -File \"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\""
-                });
+                StartProcess("pwsh", 
+                    new ProcessSettings { Arguments = $"-ExecutionPolicy Bypass -File \"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\"" });
             }
         }
         finally
         {
             if (FileExists(scriptFile))
-            {
                 DeleteFile(scriptFile);
-            }
         }
     }
     else
@@ -193,45 +189,57 @@ Task("InstallSdk").Does(() =>
                 DownloadFile("https://dot.net/v1/dotnet-install.asc", ascFile);
                 DownloadFile("https://dot.net/v1/dotnet-install.sig", sigFile);
 
-                StartProcess("gpg", new ProcessSettings
-                {
-                    Arguments = $"--import \"{MakeAbsolute(ascFile)}\""
-                });
+                StartProcess("gpg",
+                    new ProcessSettings { Arguments = $"--import \"{MakeAbsolute(ascFile)}\"" });
 
-                var exitCode = StartProcess("gpg", new ProcessSettings
-                {
-                    Arguments = $"--verify \"{MakeAbsolute(sigFile)}\" \"{MakeAbsolute(scriptFile)}\""
-                });
+                var exitCode = StartProcess("gpg",
+                    new ProcessSettings { Arguments = $"--verify \"{MakeAbsolute(sigFile)}\" \"{MakeAbsolute(scriptFile)}\"" });
 
                 if (exitCode != 0)
-                {
                     throw new CakeException("The dotnet install script failed the GPG integrity check.");
-                }
             }
 
             foreach (var sdkFile in sdkFiles)
-            {
-                StartProcess("/bin/bash", new ProcessSettings
-                {
-                    Arguments = $"\"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\""
-                });
-            }
+                StartProcess("/bin/bash", new ProcessSettings{ Arguments = $"\"{MakeAbsolute(scriptFile)}\" --jsonfile \"{sdkFile}\"" });
         }
         finally
         {
-            if (FileExists(scriptFile))
-            {
-                DeleteFile(scriptFile);
-            }
-            if (FileExists(ascFile))
-            {
-                DeleteFile(ascFile);
-            }
-            if (FileExists(sigFile))
-            {
-                DeleteFile(sigFile);
-            }
+            if (FileExists(scriptFile))DeleteFile(scriptFile);
+            if (FileExists(ascFile)) DeleteFile(ascFile);
+            if (FileExists(sigFile)) DeleteFile(sigFile);
         }
     }
 });
+```
+
+In Directory.Build.targets
+```xml
+<Project>
+    <Target Name="PreBootstrapSdk"
+        BeforeTargets="PrepareForBuild"
+        Condition="
+  '$(MSBuildProjectFullPath)' == '$(MSBuildProjectFullPath)' 
+  AND '$(IsCrossTargetingBuild)' != 'true'
+  AND '$(BuildingProject)' == 'true'
+  AND !Exists('$(BaseIntermediateOutputPath)prebootstrap.cache')">
+
+    <PropertyGroup>
+      <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(BaseIntermediateOutputPath)" />
+
+    <Exec Command="dotnet tool restore"
+          WorkingDirectory="$(RepoRoot)" />
+
+    <Exec Command="dotnet cake --target InstallSdk"
+          WorkingDirectory="$(RepoRoot)" />
+
+    <WriteLinesToFile
+        File="$(BaseIntermediateOutputPath)prebootstrap.cache"
+        Lines="done"
+        Overwrite="true" />
+
+    </Target>
+</Project>
 ```
