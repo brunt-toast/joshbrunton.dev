@@ -1,20 +1,14 @@
 ---
-title: Make sure your Windows PATH is accessible in WSL
+title: Implicit file extensions while invoking Windows executables via WSL
 date: 2026-04-14
 tags: [WSL, Linux]
 ---
 
-Sometimes, by default, your Windows host machine's PATH is accessible to WSL. This means that you can call Windows executables from inside a WSL shell. 
+On Linux, most executables don't have a file extension. On Windows, cmd and powershell will sort it out using magic (that I am going to ruin shortly). It can be quite annoying, then, to have to specify the file type when trying to invoke a Windows executable from WSL. 
 
-## Ensuring the Windows PATH is available
-
-If the Windows PATH isn't available by default, a simple shell script can make it available. 
-
-The below script checks whether the paths have already been joined by checking for the existence of `/mnt/c/Windows` within the WSL PATH, and returning early if true. Then, it extracts the Windows PATH from `CMD.exe`, maps each entry to WSL's UNC paths using `wslpath`, and finally re-assembles the Windows PATH at the end of the Linux PATH. 
+Usually, the Windows PATH is visible to WSL by default. If for some reason it isn't, a simple shell script can fix that. The below snippet checks if the paths have already been merged by checking for the existence of `/mnt/c/Windows` within the WSL PATH, and returning early if true to avoid redundant re-runs. Then, it extracts the Windows PATH from `CMD.exe`, maps each entry to WSL-style paths using `wslpath`, and finally re-assembles the Windows PATH at the end of the Linux PATH. This should be placed in shell RC (e.g. ~/.bashrc) before any logic that relies on Windows executables. 
 
 ```bash
-#!/bin/bash
-
 [[ "$PATH" =~ "/mnt/c/Windows" ]] && return 0
 
 windows_path=$(/mnt/c/Windows/System32/cmd.exe /C echo %PATH% 2>/dev/null)
@@ -34,53 +28,19 @@ string_to_append=$(
 export PATH="$PATH:$string_to_append"
 ```
 
-## Removing the requirement for extensions
+Before implementing this behaviour, we need to understand how it works in Windows. When we ask `cmd.exe` for "explorer", it will first check if there are any files named "explorer" in its PATH. Failing that, it will query the environment variable `PATHEXT`, which should contain a semicolon-separated list of file extensions, e.g.: `.BAT;.EXE`. It will iterate over these extensions, looking for a match in order of which extension appears first. First, it looks for `explorer.bat`, which doesn't exist; then, it moves on to `explorer.exe`, which is found and launched. If no candidates were found, we would instead get the classic message: "'explorer' is not recognized as an internal or external command, operable program or batch file."
 
-In cmd.exe, we don't have to ask for `explorer.exe` - we can just ask for `explorer`, and it works.  It decides how to resolve these based on the environment variable `PATHEXT`, which is a semicolon-separated list of file extensions, e.g. `.BAT;.EXE`. When you ask for `explorer` with this example, it will first check for `explorer.bat`, then move onto `explorer.exe`, which it finds and launches. 
+As previously stated, in WSL, extensions aren't implicit by default - we have to name our executable explicitly. However, we can fix that. When we fail to find a command in bash, the function `command_not_found_handle` is run, with its arguments being the command and args that were requested. Within this handler, we can query Windows' path extensions and attempt resolution on our own. 
 
-In WSL, this isn't the case by default - we have to name our executable explicitly. However, we can fix that. When we fail to find a command in bash, the function `command_not_found_handle` is run, with its arguments being the command and args that were requested. Within this handler, we can query Windows' path extensions and attempt resolution on our own. 
+>[!NOTE]
+> `command_not_found_handle` is specific to bash. Most shells support the command not found handle concept, but many call it something different. 
 
-### The Slow Way
+Initially, I experimented with using `command -v` to check for relevant executables, but that introduced an overhead of about 3 seconds. Checking for files manually was faster, but still added about 1.1 seconds, which caused resolution to feel sluggish. Eventually, I landed on an implementation that leverages caching to add the desired behaviour with an overhead of just 0.01s. 
 
-The below function will attempt to resolve commands according to Windows' PATHEXT, mirroring Bash's default behaviour of printing "$cmd: command not found\n" and returning 127 if it still can't find it. 
-
-```bash
-__WSL_PATHEXT=$(cmd.exe /c echo %PATHEXT% 2>/dev/null | tr -d '\r')
-IFS=';' read -ra __WSL_EXTS <<<"$__WSL_PATHEXT"
-
-command_not_found_handle() {
-    local cmd="$1"
-    shift
-
-    IFS=':' read -ra path_dirs <<<"$PATH"
-
-    for dir in "${path_dirs[@]}"; do
-        for ext in "${__WSL_EXTS[@]}"; do
-            ext="${ext,,}"
-            local candidate="$dir/$cmd$ext"
-            if [[ -x "$candidate" ]]; then
-                "$candidate" "$@"
-                return $?
-            fi
-        done
-    done
-
-    printf '%s: command not found\n' "$cmd" >&2
-    return 127
-}
-
-```
-
-This script does introduce a small performance overhead. Even with its optimisations, it takes an extra 1.062s to fail to resolve a command with 11 entries in PATHEXT, vs 0.095s by default. A lot of this is because of querying the Windows filesystem from WSL, which is slow. Note that it will also attempt to run relevant binaries who come from Linux's PATH as well. 
-
-### The Fast Way
-
-For those who like to live fast, 1.062s is an unacceptable delay. Using caching, we can eliminate the visible overhead almost entirely.  
-
-First, we'll need to build our cache. This can take around 10 seconds, so we don't want to do it in our shell initialisation, and definitely not in our handler. It can be run manually, but I like to keep it as a cron job at `* * * * *` (every minute), so that it remains relatively up to date. 
+First, we'll need to build our cache by walking our PATH. I chose to store it as tab-separated values in the file ~/.wsl_cmd_index.tsv. Building the cache is incredibly expensive - it can take around 10 seconds, so we don't want to do it in our shell initialisation, and definitely not in our handler. I like to run it every minute using cron, to keep it up to date.
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 OUT_FILE="${1:-$HOME/.wsl_cmd_index.tsv}"
@@ -96,7 +56,7 @@ IFS=':' read -ra PATH_DIRS <<<"$PATH"
 
 declare -A seen=()
 
-: > "$OUT_FILE"
+: >"$OUT_FILE"
 
 for dir in "${PATH_DIRS[@]}"; do
     [[ -d "$dir" ]] || continue
@@ -110,23 +70,21 @@ for dir in "${PATH_DIRS[@]}"; do
 
             if [[ -z "${seen[$base]-}" ]]; then
                 seen[$base]=1
-                printf '%s\t%s\n' "$base" "$file" >> "$OUT_FILE"
+                printf '%s\t%s\n' "$base" "$file" >>"$OUT_FILE"
             fi
         done
     done
 done
 ```
 
-Then, we can add the following to ~/.bashrc. This will load the index into an associative array at startup and perform an $O(1)$ lookup during resolution.  
+Once our index is built, we can load it and add the handler in ~/.bashrc. The below snippet will load the index at startup and perform a lookup during resolution. The lookup is super fast due to the O(1) time complexity of querying an associative array (bash-talk for a hash map). If the index isn't populated, it will inherit the default behaviour.
 
 ```bash
 __WSL_INDEX_FILE="$HOME/.wsl_cmd_index.tsv"
 
-declare -A __WSL_CMD_INDEX
+if [ -f "$__WSL_INDEX_FILE" ]; then
 
-__wsl_load_index() {
-    [[ -f "$__WSL_INDEX_FILE" ]] || return 1
-
+    declare -A __WSL_CMD_INDEX
     __WSL_CMD_INDEX=()
 
     while IFS=$'\t' read -r cmd path; do
@@ -137,10 +95,10 @@ __wsl_load_index() {
 
         __WSL_CMD_INDEX["$cmd"]="$path"
     done <"$__WSL_INDEX_FILE"
-}
-__wsl_load_index
+fi
 
 command_not_found_handle() {
+
     [[ -n "${1-}" ]] || return 127
 
     local key="${1//$'\r'/}"
