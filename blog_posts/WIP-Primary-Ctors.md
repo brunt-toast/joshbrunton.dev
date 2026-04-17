@@ -1,0 +1,9 @@
+A primary constructor is syntax that allows a constructor parameter to be available to any member of a class for the full lifetime of the class. They're sold as a more concise way to declare methods with a single constructor which doesn't do logic (which, to be fair, constructors shouldn't do). 
+
+During compilation, a primary constructor parameter essentially becomes a private field, which should be named in `_underscoreCamelCase`. Despite this, the recommendation for parameters, `camelCase`, takes precedence. If you follow these naming guidelines, you end up with a private field named like a local variable or method parameter, which can lead to friction in understanding the code. 
+
+If you decide to shadow the name of a primary constructor parameter with a local variable, there's no warning. This means that assignment before declaration stops being a compiler error and starts being a logical bug. Similarly, if you use a primary constructor parameter to assign a field or property, you'll have access to two members with similar names, and no clear distinction between their purposes. Mix them up even once, and you've got another logical error. 
+
+Even if you only use primary constructor parameters to assign private mutable fields, and name them in `_underscoreCamelCase`, one trade-off still remains. If you use your IDE to "find usages" on a class with a primary constructor, it can no longer disambiguate between uses of the class name (in variable/field/property declarations) and calls to the constructor. These are disambiguated when the class name and constructor are separate symbols. 
+
+Primary constructors may make your code that little bit more concise, but they also make it harder to understand and navigate. It is my preference and recommendation to avoid primary constructors in favour of old, reliable, classic constructors. 
