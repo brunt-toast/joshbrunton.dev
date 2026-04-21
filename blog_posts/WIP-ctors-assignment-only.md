@@ -2,6 +2,8 @@ If an exception is thrown in a constructor, the class being built will never be 
 
 Constructors should be for assignment and subscription only (and even then, subscription is iffy - you might prefer the messenger pattern). Since you've implemented the "set" and "add" accessors yourself in the current class, you can rest 100% assured that doing this will never throw an exception. 
 
+Any logic, then, should be done in a separate "initializer" method. If this method throws in a way that leaves the object in a corrupted state, the disposer and finalizer can still run, returning unmanaged resources to their shared pools. 
+
 ```csharp
 using System.Reflection;
 using MethodDecorator.Fody.Interfaces;
