@@ -10,6 +10,10 @@ A lot of tutorials for System.CommandLine end up with a somewhat messy one-file 
 
 This post is not an introduction to System.CommandLine. It's assumed that you already have a passing familiarity with commands, options, and arguments, as well as the concept of dependency injection. 
 
+## Summary 
+
+Fundamentally, we're moving from the scripting architecture common in examples to a more object-oriented architecture and leveraging dependency injection to reduce coupling for cleaner extensions and refactors. 
+
 ## Project Structure 
 
 First, create a new console app (`dotnet new console`), and add the packages `System.CommandLine` and `Microsoft.Extensions.DependencyInjection` (`dotnet package add [...]`). 
@@ -74,7 +78,7 @@ This means that they'll also accept any method with any of the following signatu
 * `Task<int> M(ParseResult arg)`
 * `Task<int> M(ParseResult arg, CancellationToken ct)`
 
-We'll use `Task<int> M(ParseResult arg, CancellationToken ct)` in case we want to go async later. So, the class should look something like this: 
+We'll use `Task<int> M(ParseResult arg, CancellationToken ct)` - an int so we can indicate success in the standard "return 0" fashion, and a Task in case we want to go async later. So, the class should look something like this: 
 
 ```csharp
 internal class HelloCommand : RootCommand 
