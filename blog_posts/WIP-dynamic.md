@@ -1,6 +1,69 @@
-## How dynamic works
+---
+title: What is the CLR type of a dynamic variable?
+date: 2026-05-15
+tags: [.NET]
+---
 
-Take a look at this code snippet, which makes use of dynamic typing. Looks simple, right? 
+Short answer: `dynamic` doesn't map to a CLR type. Under the hood it is a plain `System.Object` which is accessed via reflection using a compiler-generated mini-interpreter. 
+
+## What is a dynamic?
+
+`dynamic` is a C# keyword which acts like a type alias. You can assign anything to a `dynamic` variable, and you can try to access any property or method upon one. 
+
+The main caveat is that method and property access aren't validated at compile time. You could ask for a member that doesn't exist, and you won't find out until a `RuntimeBinderException` is thrown while executing. 
+
+Dynamic code also results in larger binaries and slower performance than statically typed code, and limits AOT compilation (because it uses reflection under the hood, which relies on the .NET runtime). 
+
+## What are the use cases for dynamic? 
+
+`dynamic` is a relatively niche keyword, because the primary use case for `dynamic` is when inter-operating with external code from weakly typed languages or other situations where a call might return data of an unpredictable shape. 
+
+Beyond that, it should be used with great care. To use `dynamic` when a type is actually known is akin to using the `any` type in TypeScript to dodge API constraints: you're throwing away the guarantees of the compiler for no good reason, sacrificing safety and often performance. 
+
+If your solution is fully self-contained in .NET code and you're using `dynamic`, you've probably architected in a way that could be cleaner. Whenever viable, consider instead: 
+
+* Creating method overloads to accept multiple known types as parameters 
+* Returning a tuple or union to return one of multiple known types 
+* Using inheritance to create logical links between classes with common properties and purposes 
+
+## How do we know that compiled code is dynamic? 
+
+While `dynamic` variables are essentially `objects`, built assemblies' public APIs still need to be able to reconstruct the information that a symbol is of a dynamic type so consumers can treat it as such. This is done with an attribute, `System.Runtime.CompilerServices.DynamicAttribute`. It is reserved for compiler usage, meaning that it is a compiler error for user code to annotate any symbol with it. 
+
+Consider the lowering of the following method signature with a dynamic parameter:
+
+```csharp
+/* source  */ void M(dynamic dyn);
+/* lowered */ void M([Dynamic] object dyn);
+```
+
+Or, for a dynamic return type, we annotate the entire method with a return attribute: 
+
+```csharp
+// source
+dynamic M();
+
+// lowered
+[return: Dynamic]
+object M();
+```
+
+If we use any generic type parameters, we pass `bool[] transformFlags` to the constructor to indicate which parameters were dynamic. The order they appear in `transformFlags` is the same order in which they are read, for example: 
+
+```csharp
+/* source  */ void M(Dictionary<object,dynamic> dyn);
+/* lowered */ void M([Dynamic([false, false, true])] Dictionary<object,object> dyn)
+```
+
+(The default constructor for `DynamicAttribute` sets `transformFlags` to `new bool[1] { true }`.)
+
+The annotation doesn't appear on local variables because they aren't exposed as part of a public API. There's no way for a consumer to know about the existence of a local variable, let alone its type. (Also, because attributes aren't valid on local variables). 
+
+## How are dynamic variables accessed?
+
+Even in simple use cases, `dynamic` causes a lot of code to be generated around it. Shown below is an example of lowered dynamic code. 
+
+The source code: 
 
 ```csharp
 string[] arr = ["hello", "world"];
@@ -8,60 +71,7 @@ dynamic dyn = arr;
 int len = dyn.Length;
 ```
 
-But when we lower it, it becomes this: 
-
-```csharp
-using System;
-using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Security;
-using System.Security.Permissions;
-using Microsoft.CSharp.RuntimeBinder;
-
-[assembly: CompilationRelaxations(8)]
-[assembly: RuntimeCompatibility(WrapNonExceptionThrows = true)]
-[assembly: Debuggable(DebuggableAttribute.DebuggingModes.Default | DebuggableAttribute.DebuggingModes.IgnoreSymbolStoreSequencePoints | DebuggableAttribute.DebuggingModes.EnableEditAndContinue | DebuggableAttribute.DebuggingModes.DisableOptimizations)]
-[assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
-[assembly: AssemblyVersion("0.0.0.0")]
-[module: UnverifiableCode]
-[module: RefSafetyRules(11)]
-internal class Program
-{
-	[CompilerGenerated]
-	private static class <>o__0
-	{
-		public static CallSite<Func<CallSite, object, object>> <>p__0;
-
-		public static CallSite<Func<CallSite, object, int>> <>p__1;
-	}
-
-	private static void Main()
-	{
-		string[] array = new string[2];
-		array[0] = "hello";
-		array[1] = "world";
-		string[] array2 = array;
-		object arg = array2;
-		if (<>o__0.<>p__1 == null)
-		{
-			<>o__0.<>p__1 = CallSite<Func<CallSite, object, int>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.Convert(CSharpBinderFlags.None, typeof(int), typeof(Program)));
-		}
-		Func<CallSite, object, int> target = <>o__0.<>p__1.Target;
-		CallSite<Func<CallSite, object, int>> <>p__ = <>o__0.<>p__1;
-		if (<>o__0.<>p__0 == null)
-		{
-			Type typeFromHandle = typeof(Program);
-			CSharpArgumentInfo[] array3 = new CSharpArgumentInfo[1];
-			array3[0] = CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null);
-			<>o__0.<>p__0 = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, "Length", typeFromHandle, array3));
-		}
-		int num = target(<>p__, <>o__0.<>p__0.Target(<>o__0.<>p__0, arg));
-	}
-}
-```
-
-Even in simple use cases, `dynamic` causes a lot of code to be generated around it. To make it easier to understand, let's strip away all the compiler noise and focus on just what we need to get our same code without typing the `dynamic` keyword ourselves: 
+The lowered code (with names adjusted for clarity, and compiler noise removed): 
 
 ```csharp
 static class CallSites
@@ -96,7 +106,7 @@ int len = CallSites.ConvertLengthObjectToInt.Target(CallSites.ConvertLengthObjec
 
 Let's break down what happens here. 
 
-First, the compiler generates a class to register all the places we'll make use of our dynamic variable, called the "call sites". Nothing is initialised yet, because we don't want to perform the allocations up front - that would increase startup time and waste memory if our code is heuristically unreachable. We'll give them some clear names here: 
+First, the compiler generates a class to register all the places we'll make use of our dynamic variable, called the "call sites". To save on startup time, nothing is initialised up front. 
 
 ```csharp
 static class CallSites
@@ -134,41 +144,18 @@ if (CallSites.ConvertLengthObjectToInt == null)
 }
 ```
 
-Then, we run the targets, extracting `object lenObj` and then converting it into `int len`. 
+With our call sites constructed, we try to access the `object lenObj`.  
 
 ```csharp
 object lenObj = CallSites.GetLengthAsObject.Target(CallSites.GetLengthAsObject, dyn);
+```
+
+Then, we try to convert that object into an `int len`. 
+
+```csharp
 int len = CallSites.ConvertLengthObjectToInt.Target(CallSites.ConvertLengthObjectToInt, lenObj);
 ```
 
-The targets will throw `RuntimeBinderException` if they cannot execute. 
+Since the variable is dynamic, we can't know if the `Length` property will exist or if it will be of type `int`. The targets will throw `RuntimeBinderException` if they cannot execute for reasons that would usually be caught by the compiler. 
 
-Of course, the generated code will vary wildly depending on how the dynamic is assigned and consumed. Consistent among all applications is that the compiler will treat the dynamic as an object and construct mini-interpreters to try to execute the code at runtime. 
-
-## Dynamic APIs in compiled libraries 
-
-While `dynamic` variables are essentially `objects`, built assemblies' public APIs still need to be able to reconstruct the information that a symbol is of a dynamic type so consumers can treat it as such. This is done with an attribute, `System.Runtime.CompilerServices.DynamicAttribute`. It is reserved for compiler usage, meaning that it is a compiler error for user code to annotate any symbol with it. 
-
-Consider the lowering of the following method signature with a dynamic parameter:
-
-```csharp
-void M(dynamic dyn);
-void M([Dynamic] object dyn);
-```
-
-Or, for a dynamic return type, we annotate the entire method with a return attribute: 
-
-```csharp
-dynamic M();
-
-[return: Dynamic]
-object M();
-```
-
-If we use any generic type parameters, we pass `bool[] transformFlags` to the constructor to indicate which parameters were dynamic. The order they appear in `transformFlags` is the same order in which they are read, for example: 
-
-```csharp
-void M(Dictionary<object,dynamic> dyn);
-
-void M([Dynamic([false, false, true])] Dictionary<object,object> dyn)
-```
+Of course, the generated code will vary wildly depending on how the dynamic is assigned and consumed, but consistent among all applications is that the compiler will treat the dynamic as an object and construct mini-interpreters *ad hoc* to try to execute the code at runtime, caching them for later re-use. 
